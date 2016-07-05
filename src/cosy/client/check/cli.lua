@@ -8,12 +8,12 @@ local source
 local rocks = {}
 
 do
-  local path = package.searchpath ("cosy.check.cli", package.path)
+  local path  = package.searchpath ("cosy.client.check.cli", package.path)
   local parts = {}
   for part in path:gmatch "[^/]+" do
     parts [#parts+1] = part
   end
-  for _ = 1, 2 do
+  for _ = 1, 3 do
     parts [#parts] = nil
   end
   source = (path:find "^/" and "/" or "") .. table.concat (parts, "/")
@@ -31,16 +31,12 @@ do
 end
 
 local parser = Arguments () {
-  name        = "cosy-check",
-  description = "Perform various checks on the cosy sources",
+  name        = "cosy-check-client",
+  description = "Perform various checks on the cosy client",
 }
 parser:option "--prefix" {
   description = "install prefix",
   default     = prefix,
-}
-parser:option "--test-format" {
-  description = "format for the test results (supported by busted)",
-  default     = "TAP",
 }
 parser:option "--output" {
   description = "output directory",
@@ -63,11 +59,11 @@ function _G.string.split (s, delimiter)
 end
 
 -- Compute path:
-local main = package.searchpath ("cosy.check.cli", package.path)
+local main = package.searchpath ("cosy.client.check.cli", package.path)
 if main:sub (1, 2) == "./" then
   main = Lfs.currentdir () .. "/" .. main:sub (3)
 end
-main = main:gsub ("/check/cli.lua", "")
+main = main:gsub ("/client/check/cli.lua", "")
 
 local status = true
 
@@ -93,13 +89,7 @@ do
     rm -f luacov.*
   ]]
   status = os.execute (Et.render ([[
-    LAPIS_OPENRESTY="<%- prefix %>/nginx/sbin/nginx" "<%- prefix %>/bin/busted" "<%- tags %>" --verbose src/
-  ]], {
-    prefix = prefix,
-    tags   = arguments.tags and "--tags=" .. arguments.tags,
-  })) == 0 and status
-  status = os.execute (Et.render ([[
-    LAPIS_OPENRESTY="<%- prefix %>/nginx/sbin/nginx" RUN_COVERAGE=true "<%- prefix %>/bin/busted" --verbose --coverage "<%- tags %>" --verbose src/
+    "<%- prefix %>/bin/busted" --verbose --coverage "<%- tags %>" --verbose src/
   ]], {
     prefix = prefix,
     tags   = arguments.tags and "--tags=" .. arguments.tags,

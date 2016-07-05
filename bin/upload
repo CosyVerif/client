@@ -1,0 +1,21 @@
+#! /usr/bin/env bash
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+[ "${branch}" = "master" ] && {
+  server="http://luarocks.org/"
+} || {
+  server="http://luarocks.org/dev"
+}
+tag=$(git describe --tags --abbrev=0 || echo "0.0")
+count=$(git rev-list --count HEAD ^"${tag}" || git rev-list --count HEAD)
+
+cd rockspec || exit 1
+rockspec=cosy-client-master-1.rockspec
+name=cosy-client
+sed -e "s/master-1/${tag}-${count}/" "${rockspec}" \
+  > "${name}"-"${tag}"-"${count}".rockspec
+luarocks upload \
+  --server="${server}" \
+  --api-key="${LUAROCKS_TOKEN}" \
+  "${name}"-"${tag}"-"${count}".rockspec
+cd ..

@@ -1,7 +1,7 @@
 local Test = require "cosy.server.test"
 local Et   = require "etlua"
 
-describe ("#current client", function ()
+describe ("client", function ()
   Test.environment.use ()
 
   local request

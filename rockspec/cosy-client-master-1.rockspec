@@ -18,7 +18,7 @@ dependencies = {
   "lua >= 5.1",
   "argparse",
   "ansicolors",
-  "jwt",
+  "dkjson",
   "layeredata",
   "lua-cjson-ol",
   "luafilesystem",

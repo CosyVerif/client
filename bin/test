@@ -1,11 +1,14 @@
-#! /bin/bash
+#! /usr/bin/env bash
 
 set -e
 
-dropdb cosyverif-test
-createdb cosyverif-test
-./install/bin/luarocks make rockspec/cosy-server-master-1.rockspec
-./install/bin/luarocks make rockspec/cosy-editor-master-1.rockspec
-./install/bin/luarocks make rockspec/cosy-client-master-1.rockspec
-./install/bin/lapis migrate test
-./install/bin/cosy-check $*
+root=${1:-$PWD}
+
+for dir in "${root}"/lua*; do
+  if [ -d "${dir}" ]; then
+    echo "Installing in ${dir}..."
+    "${dir}/bin/luarocks" make rockspec/*-dev-master-1.rockspec
+    "${dir}/bin/luarocks" make rockspec/*-master-1.rockspec
+    "${dir}/bin/cosy-check-client" 
+  fi
+done

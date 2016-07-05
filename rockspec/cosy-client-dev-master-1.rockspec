@@ -1,13 +1,13 @@
-package = "cosy-server-dev"
+package = "cosy-client-dev"
 version = "master-1"
 source  = {
-  url = "git://github.com/cayonerie/server"
+  url = "git://github.com/saucisson/cosy-client",
 }
 
 description = {
-  summary    = "CosyVerif: server (dev dependencies)",
+  summary    = "CosyVerif: client (dev dependencies)",
   detailed   = [[
-    Development dependencies for cosy-server.
+    Development dependencies for cosy-client.
   ]],
   homepage   = "http://www.cosyverif.org/",
   license    = "MIT/X11",
@@ -29,5 +29,12 @@ dependencies = {
 
 build = {
   type    = "builtin",
-  modules = {},
+  modules = {
+    ["cosy.client.check.cli"] = "src/cosy/client/check/cli.lua",
+  },
+  install = {
+    bin = {
+      ["cosy-check-client" ] = "src/cosy/client/check/bin.lua",
+    },
+  },
 }
