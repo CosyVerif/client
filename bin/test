@@ -7,8 +7,8 @@ root=${1:-$PWD}
 for dir in "${root}"/lua*; do
   if [ -d "${dir}" ]; then
     echo "Installing in ${dir}..."
-    "${dir}/bin/luarocks" make rockspec/*-dev-master-1.rockspec
-    "${dir}/bin/luarocks" make rockspec/*-master-1.rockspec
-    "${dir}/bin/cosy-check-client" 
+    "${dir}/bin/luarocks" make rockspec/cosy-client-dev-master-1.rockspec
+    "${dir}/bin/luarocks" make rockspec/cosy-client-master-1.rockspec
+    "${dir}/bin/cosy-check-client"
   fi
 done

@@ -350,8 +350,7 @@ do
   if os.execute "command -v shellcheck > /dev/null 2>&1" == 0 then
     local s = os.execute (Et.render ([[
       if [ -d bin ]; then
-        . "<%- prefix %>/bin/realpath.sh"
-        shellcheck $(realpath bin/*)
+        shellcheck bin/*
       fi
     ]], {
       prefix = prefix,
