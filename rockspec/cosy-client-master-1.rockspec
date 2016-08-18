@@ -1,7 +1,8 @@
 package = "cosy-client"
 version = "master-1"
 source  = {
-  url = "git://github.com/cayonerie/server"
+  url    = "git+https://github.com/cosyverif/client.git",
+  branch = "master",
 }
 
 description = {
@@ -18,10 +19,13 @@ dependencies = {
   "lua >= 5.1",
   "argparse",
   "ansicolors",
-  "dkjson",
+  "copas",
+  "etlua",
+  "i18n",
+  "lua-websockets",
   "layeredata",
-  "lua-cjson-ol",
   "luafilesystem",
+  "luasec",
   "luasocket",
   "lustache",
   "serpent",
@@ -33,6 +37,7 @@ build = {
   modules = {
     ["cosy.client"     ] = "src/cosy/client/init.lua",
     ["cosy.client.cli" ] = "src/cosy/client/cli.lua",
+    ["cosy.client.http"] = "src/cosy/client/http.lua",
     ["cosy.client.i18n"] = "src/cosy/client/i18n.lua",
     ["cosy.i18n"       ] = "src/cosy/i18n/init.lua",
   },

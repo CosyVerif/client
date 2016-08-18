@@ -1,14 +1,3 @@
-# Lapis stuff:
-client_body_temp
-fastcgi_temp
-proxy_temp
-scgi_temp
-uwsgi_temp
-logs
-nginx.conf.compiled
-config.lua
-
-# Test stuff:
-coverage/
-output/
-luacov.*
+.wercker
+rockspec/*.src.rock
+ENVIRONMENT
