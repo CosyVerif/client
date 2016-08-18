@@ -56,8 +56,8 @@ local function make_false_token (subject, contents, duration)
   })
 end
 
-local branch
-do
+local branch = assert (os.getenv "COSY_BRANCH" or os.getenv "WERCKER_GIT_BRANCH")
+if not branch or branch == "master" then
   local file = assert (io.popen ("git rev-parse --abbrev-ref HEAD", "r"))
   branch = assert (file:read "*line")
   file:close ()
