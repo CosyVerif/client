@@ -1,11 +1,11 @@
 FROM debian:testing
 MAINTAINER Alban Linard <alban@linard.fr>
 
-RUN apt-get update
-RUN apt-get --yes install sudo git
-
-ADD . /home/cosy/environment
-RUN chown -R root.users /home/cosy
-
-RUN cd /home/cosy/environment && ./bin/install --in-ci --prefix=/app && rm -rf /home/cosy/environment
-RUN chown -R root.users /app
+ADD . /src/cosy/client
+RUN luarocks install luasec OPENSSL_LIBDIR="/lib/x86_64-linux-gnu/"
+RUN cd /src/cosy/client/ && \
+    luarocks make rockspec/cosy-client-master-1.rockspec && \
+    cd /
+RUN rm -rf /src/cosy/client
+ENTRYPOINT ["cosy-client"]
+CMD ["--help"]
