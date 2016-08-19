@@ -4,7 +4,7 @@ build:
     - script:
         name: "install"
         code: |
-          for dir in /lua/luajit21-52; do
+          for dir in /lua/*; do
             if [ -d "${dir}" ]; then
               "${dir}/bin/luarocks" make rockspec/cosy-client-env-master-1.rockspec
               "${dir}/bin/luarocks" make rockspec/cosy-client-master-1.rockspec
@@ -17,7 +17,7 @@ build:
     - script:
         name: "test"
         code: |
-          for dir in /lua/luajit21-52; do
+          for dir in /lua/*; do
             if [ -d "${dir}" ]; then
               echo "${dir}"
               "${dir}/bin/busted" src/
