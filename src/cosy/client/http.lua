@@ -18,10 +18,21 @@ function M.json (options)
   local http = options.url:match "https://"
            and Https
             or Http
-  local _, status, _, _ = http.request (options)
-  if status == 500 then
-    return nil, status
-  end
+  local status, _
+  local retry = 10
+  repeat
+    _, status, _, _ = http.request (options)
+    if type (status) ~= "number" then
+      return nil, status
+    elseif status == 500 then
+      return nil, status
+    elseif retry == 0 then
+      return nil, status
+    elseif status == 503 then
+      os.execute [[ sleep 1 ]]
+    end
+    retry = retry - 1
+  until status < 500
   result = #result ~= 0
        and Json.decode (table.concat (result))
   return result, status
