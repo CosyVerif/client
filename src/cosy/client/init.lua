@@ -11,11 +11,14 @@ local function assert (condition, err)
   end
 end
 
+local Client      = {}
+local Execution   = {}
 local Resource    = {}
 local Permissions = {}
-local User        = {}
 local Project     = {}
-local Client      = {}
+local User        = {}
+
+-- ======================================================================
 
 Client.__index = Client
 
@@ -25,9 +28,10 @@ function Client.new (options)
     token   = options.token,
     force   = options.force,
     unique  = {
-      users     = setmetatable ({}, { __mode = "v" }),
-      projects  = setmetatable ({}, { __mode = "v" }),
-      resources = setmetatable ({}, { __mode = "v" }),
+      users      = setmetatable ({}, { __mode = "v" }),
+      projects   = setmetatable ({}, { __mode = "v" }),
+      resources  = setmetatable ({}, { __mode = "v" }),
+      executions = setmetatable ({}, { __mode = "v" }),
     },
   }, Client)
   local info, status = Http.json {
@@ -105,6 +109,8 @@ function Client.tagged (client, tag)
   end)
 end
 
+-- ======================================================================
+
 function Client.users (client)
   assert (getmetatable (client) == Client)
   local data, status = Http.json {
@@ -138,6 +144,7 @@ function User.__new (client, id)
       client = client,
       id     = id,
       data   = false,
+      url    = client.url .. "/users/" .. id,
     }, User)
     client.unique.users [id] = result
   end
@@ -151,7 +158,7 @@ function User.load (user)
   end
   local client = user.client
   local data, status = Http.json {
-    url     = client.url .. "/users/" .. user.id,
+    url     = user.url,
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -166,7 +173,7 @@ function User.delete (user)
   assert (getmetatable (user) == User)
   local client    = user.client
   local _, status = Http.json {
-    url     = client.url .. "/users/" .. user.id,
+    url     = user.url,
     method  = "DELETE",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -190,7 +197,7 @@ function User.__newindex (user, key, value)
   User.load (user)
   local client    = user.client
   local _, status = Http.json {
-    url     = client.url .. "/users/" .. user.id,
+    url     = user.url,
     method  = "PATCH",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -215,6 +222,29 @@ function User.__pairs (user)
       end
     end
   end)
+end
+
+-- ======================================================================
+
+function Project.__new (client, id)
+  assert (getmetatable (client) == Client)
+  local result = client.unique.projects [id]
+  if not result then
+    result = {
+      client = client,
+      id     = id,
+      data   = false,
+      url    = client.url .. "/projects/" .. id,
+    }
+    result.permissions = setmetatable ({
+      client  = client,
+      project = result,
+      data    = false,
+    }, Permissions)
+    result = setmetatable (result, Project)
+    client.unique.projects [id] = result
+  end
+  return result
 end
 
 function Client.projects (client)
@@ -257,26 +287,6 @@ function Client.create_project (client, t)
   return Project.__new (client, data.id)
 end
 
-function Project.__new (client, id)
-  assert (getmetatable (client) == Client)
-  local result = client.unique.projects [id]
-  if not result then
-    result = {
-      client = client,
-      id     = id,
-      data   = false,
-    }
-    result.permissions = setmetatable ({
-      client  = client,
-      project = result,
-      data    = false,
-    }, Permissions)
-    result = setmetatable (result, Project)
-    client.unique.projects [id] = result
-  end
-  return result
-end
-
 function Project.load (project)
   assert (getmetatable (project) == Project)
   if project.data then
@@ -284,7 +294,7 @@ function Project.load (project)
   end
   local client = project.client
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id,
+    url     = project.url,
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -299,7 +309,7 @@ function Project.delete (project)
   assert (getmetatable (project) == Project)
   local client    = project.client
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id,
+    url     = project.url,
     method  = "DELETE",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -323,7 +333,7 @@ function Project.__newindex (project, key, value)
   Project.load (project)
   local client    = project.client
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id,
+    url     = project.url,
     method  = "PATCH",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -354,7 +364,7 @@ function Project.tags (project)
   assert (getmetatable (project) == Project)
   local client = project.client
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/tags/",
+    url     = project.url .. "/tags/",
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -378,7 +388,7 @@ function Project.tag (project, tag)
   assert (getmetatable (project) == Project)
   local client    = project.client
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/tags/" .. tag,
+    url     = project.url .. "/tags/" .. tag,
     method  = "PUT",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -392,7 +402,7 @@ function Project.untag (project, tag)
   assert (getmetatable (project) == Project)
   local client    = project.client
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/tags/" .. tag,
+    url     = project.url .. "/tags/" .. tag,
     method  = "DELETE",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -406,7 +416,7 @@ function Project.stars (project)
   assert (getmetatable (project) == Project)
   local client = project.client
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/stars",
+    url     = project.url .. "/stars",
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -425,7 +435,7 @@ function Project.star (project)
   assert (getmetatable (project) == Project)
   local client    = project.client
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/stars",
+    url     = project.url .. "/stars",
     method  = "PUT",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -439,7 +449,7 @@ function Project.unstar (project)
   assert (getmetatable (project) == Project)
   local client    = project.client
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/stars",
+    url     = project.url .. "/stars",
     method  = "DELETE",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -448,6 +458,8 @@ function Project.unstar (project)
   assert (status == 204, { status = status })
   return project
 end
+
+-- ======================================================================
 
 function Permissions.load (permissions)
   assert (getmetatable (permissions) == Permissions)
@@ -494,6 +506,9 @@ end
 
 function Permissions.__index (permissions, key)
   assert (getmetatable (permissions) == Permissions)
+  if Permissions [key] then
+    return Permissions [key]
+  end
   Permissions.load (permissions)
   return permissions.data [key]
 end
@@ -541,6 +556,26 @@ function Permissions.__pairs (permissions)
   end)
 end
 
+-- ======================================================================
+
+function Resource.__new (project, id)
+  assert (getmetatable (project) == Project)
+  local client = project.client
+  local result = client.unique.resources [id]
+  if not result then
+    result = {
+      client  = client,
+      project = project,
+      id      = id,
+      data    = false,
+      url     = client.url .. "/projects/" .. project.id .. "/resources/" .. id,
+    }
+    result = setmetatable (result, Resource)
+    client.unique.resources [id] = result
+  end
+  return result
+end
+
 function Project.create_resource (project, t)
   assert (getmetatable (project) == Project)
   local client = project.client
@@ -553,7 +588,7 @@ function Project.create_resource (project, t)
     body    = t,
   }
   assert (status == 201, { status = status })
-  return Resource.__new (client, project, data.id)
+  return Resource.__new (project, data.id)
 end
 
 function Project.resources (project)
@@ -570,26 +605,16 @@ function Project.resources (project)
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
     for _, resource in ipairs (data) do
-      coroutine.yield (Resource.__new (client, project, resource.id))
+      coroutine.yield (Resource.__new (project, resource.id))
     end
   end)
 end
 
-function Resource.__new (client, project, id)
-  assert (getmetatable (client) == Client)
+function Project.resource (project, id)
   assert (getmetatable (project) == Project)
-  local result = client.unique.resources [id]
-  if not result then
-    result = {
-      client  = client,
-      project = project,
-      id      = id,
-      data    = false,
-    }
-    result = setmetatable (result, Resource)
-    client.unique.resources [id] = result
-  end
-  return result
+  local resource = Resource.__new (project, id)
+  Resource.load (resource)
+  return resource
 end
 
 function Resource.load (resource)
@@ -598,9 +623,8 @@ function Resource.load (resource)
     return resource
   end
   local client  = resource.client
-  local project = resource.project
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/resources/" .. resource.id,
+    url     = resource.url,
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -614,9 +638,8 @@ end
 function Resource.delete (resource)
   assert (getmetatable (resource) == Resource)
   local client    = resource.client
-  local project   = resource.project
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/resources/" .. resource.id,
+    url     = resource.url,
     method  = "DELETE",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -639,9 +662,8 @@ function Resource.__newindex (resource, key, value)
   assert (getmetatable (resource) == Resource)
   Resource.load (resource)
   local client    = resource.client
-  local project   = resource.project
   local _, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/resources/" .. resource.id,
+    url     = resource.url,
     method  = "PATCH",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -668,6 +690,158 @@ function Resource.__pairs (resource)
     end
   end)
 end
+
+-- ======================================================================
+
+function Execution.__new (project, id)
+  assert (getmetatable (project) == Project)
+  local client = project.client
+  local result = client.unique.executions [id]
+  if not result then
+    result = {
+      client  = client,
+      project = project,
+      id      = id,
+      data    = false,
+      url     = client.url .. "/projects/" .. project.id .. "/executions/" .. id,
+    }
+    result = setmetatable (result, Execution)
+    client.unique.executions [id] = result
+  end
+  return result
+end
+
+function Resource.execute (resource, image, options)
+  assert (getmetatable (resource) == Resource)
+  assert (type (image) == "string")
+  return resource.project:execute (resource, image, options)
+end
+
+function Project.execute (project, resource, image, options)
+  assert (getmetatable (project ) == Project )
+  assert (getmetatable (resource) == Resource)
+  assert (type (image) == "string")
+  local client = project.client
+  local t      = {
+    resource = resource.url,
+    image    = image,
+  }
+  for k, v in pairs (options or {}) do
+    t [k] = v
+  end
+  local data, status = Http.json {
+    url     = client.url .. "/projects/" .. project.id .. "/executions/",
+    method  = "POST",
+    headers = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+    body    = t,
+  }
+  assert (status == 201, { status = status })
+  return Execution.__new (project, data.id)
+end
+
+function Project.executions (project)
+  assert (getmetatable (project) == Project)
+  local client = project.client
+  local data, status = Http.json {
+    url     = client.url .. "/projects/" .. project.id .. "/executions/",
+    method  = "GET",
+    headers = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 200, { status = status })
+  local coroutine = Coromake ()
+  return coroutine.wrap (function ()
+    for _, execution in ipairs (data) do
+      coroutine.yield (Execution.__new (project, execution.id))
+    end
+  end)
+end
+
+function Project.execution (project, id)
+  assert (getmetatable (project) == Project)
+  local execution = Execution.__new (project, id)
+  Execution.load (execution)
+  return execution
+end
+
+function Execution.load (execution)
+  assert (getmetatable (execution) == Execution)
+  if execution.data then
+    return execution
+  end
+  local client  = execution.client
+  local data, status = Http.json {
+    url     = execution.url,
+    method  = "GET",
+    headers = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 200, { status = status })
+  execution.data = data
+  return execution
+end
+
+function Execution.delete (execution)
+  assert (getmetatable (execution) == Execution)
+  local client    = execution.client
+  local _, status = Http.json {
+    url     = execution.url,
+    method  = "DELETE",
+    headers = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 204, { status = status })
+  execution.data = false
+end
+
+function Execution.__index (execution, key)
+  assert (getmetatable (execution) == Execution)
+  if Execution [key] then
+    return Execution [key]
+  end
+  Execution.load (execution)
+  return execution.data [key]
+end
+
+function Execution.__newindex (execution, key, value)
+  assert (getmetatable (execution) == Execution)
+  Execution.load (execution)
+  local client    = execution.client
+  local _, status = Http.json {
+    url     = execution.url,
+    method  = "PATCH",
+    headers = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+    body    = {
+      [key] = value,
+    }
+  }
+  assert (status == 204, { status = status })
+  execution.data = false
+end
+
+function Execution.__pairs (execution)
+  assert (getmetatable (execution) == Execution)
+  Execution.load (execution)
+  local coroutine = Coromake ()
+  return coroutine.wrap (function ()
+    coroutine.yield ("client" , execution.client)
+    coroutine.yield ("project", execution.project)
+    if execution.data then
+      for key, value in pairs (execution.data) do
+        coroutine.yield (key, value)
+      end
+    end
+  end)
+end
+
+-----
 
 local Editor = {}
 
