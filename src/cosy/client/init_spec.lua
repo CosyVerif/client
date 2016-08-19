@@ -201,31 +201,6 @@ describe ("cosy client", function ()
     end
   end)
 
-  before_each (function ()
-    local token  = make_token (identities.naouna)
-    local Client = require "cosy.client"
-    local client = Client.new {
-      url   = server_url,
-      token = token,
-    }
-    local project = client:create_project {
-      name        = "naouna",
-      description = "Naouna project",
-    }
-    project:tag  "naouna"
-    project:star ()
-  end)
-
-  after_each (function ()
-    local token = make_token (identities.naouna)
-    local Client = require "cosy.client"
-    local client = Client.new {
-      url   = server_url,
-      token = token,
-    }
-    client.authentified:delete ()
-  end)
-
   -- ======================================================================
 
   it ("can be required", function ()
@@ -285,10 +260,16 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
+    local project = client:create_project {}
+    local count   = 0
+    project:tag "something"
     for tag in client:tags () do
       assert.is_not_nil (tag.id)
       assert.is_not_nil (tag.count)
+      count = count + 1
     end
+    assert.are.equal (count, 1)
+    project:delete ()
   end)
 
   it ("can get tag information", function ()
@@ -298,11 +279,17 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    for tag in client:tagged "naouna" do
+    local project = client:create_project {}
+    local count   = 0
+    project:tag "something"
+    for tag in client:tagged "something" do
       assert.is_not_nil (tag.id)
       assert.is_not_nil (tag.user)
       assert.is_not_nil (tag.project)
+      count = count + 1
     end
+    assert.are.equal (count, 1)
+    project:delete ()
   end)
 
   -- ======================================================================
@@ -326,12 +313,15 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local user = client:user (client.authentified.id)
+    local user  = client:user (client.authentified.id)
+    local count = 0
     assert.is_not_nil (user.nickname)
     assert.is_not_nil (user.reputation)
-    for _, v in pairs (user) do
+    for _, v in user:__pairs () do
       local _ = v
+      count = count + 1
     end
+    assert.is_truthy (count > 0)
   end)
 
   it ("can update user info", function ()
@@ -369,7 +359,8 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    client:create_project {}
+    local project = client:create_project {}
+    project:delete ()
   end)
 
   it ("can list projects", function ()
@@ -379,9 +370,14 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    for project in client:projects () do
-      assert.is_not_nil (project.id)
+    local project = client:create_project {}
+    local count   = 0
+    for p in client:projects () do
+      assert.is_not_nil (p.id)
+      count = count + 1
     end
+    assert.are.equal (count, 1)
+    project:delete ()
   end)
 
   it ("can access project info", function ()
@@ -398,9 +394,10 @@ describe ("cosy client", function ()
     project = client:project (project.id)
     assert.is_not_nil (project.name)
     assert.is_not_nil (project.description)
-    for _, v in pairs (project) do
+    for _, v in project:__pairs () do
       assert (v)
     end
+    project:delete ()
   end)
 
   it ("can update project info", function ()
@@ -412,6 +409,7 @@ describe ("cosy client", function ()
     }
     local project = client:create_project ()
     project.name = "my project"
+    project:delete ()
   end)
 
   it ("can delete project", function ()
@@ -435,12 +433,16 @@ describe ("cosy client", function ()
       token = token,
     }
     local project = client:create_project ()
+    local count   = 0
     project:tag "my-project"
     for tag in project:tags () do
       assert.is_not_nil (tag.id)
       assert.is_not_nil (tag.user)
       assert.is_not_nil (tag.project)
+      count = count + 1
     end
+    assert.are.equal (count, 1)
+    project:delete ()
   end)
 
   it ("can tag project", function ()
@@ -452,6 +454,7 @@ describe ("cosy client", function ()
     }
     local project = client:create_project ()
     project:tag "my-tag"
+    project:delete ()
   end)
 
   it ("can untag project", function ()
@@ -464,6 +467,7 @@ describe ("cosy client", function ()
     local project = client:create_project ()
     project:tag   "my-tag"
     project:untag "my-tag"
+    project:delete ()
   end)
 
   -- ======================================================================
@@ -476,11 +480,15 @@ describe ("cosy client", function ()
       token = token,
     }
     local project = client:create_project ()
+    local count   = 0
     project:star ()
     for star in project:stars () do
       assert.is_not_nil (star.user_id)
       assert.is_not_nil (star.project_id)
+      count = count + 1
     end
+    assert.are.equal (count, 1)
+    project:delete ()
   end)
 
   it ("can star project", function ()
@@ -492,6 +500,7 @@ describe ("cosy client", function ()
     }
     local project = client:create_project ()
     project:star ()
+    project:delete ()
   end)
 
   it ("can unstar project", function ()
@@ -504,6 +513,7 @@ describe ("cosy client", function ()
     local project = client:create_project ()
     project:star   ()
     project:unstar ()
+    project:delete ()
   end)
 
   -- ======================================================================
@@ -520,9 +530,10 @@ describe ("cosy client", function ()
     assert.is_not_nil (project.permissions.user)
     assert.is_not_nil (project.permissions [project])
     assert.is_not_nil (project.permissions [client.authentified])
-    for who, permission in pairs (project.permissions) do
+    for who, permission in project.permissions:__pairs () do
       local _, _ = who, permission
     end
+    project:delete ()
   end)
 
   it ("can add permission", function ()
@@ -532,16 +543,15 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local naouna
-    for user in client:users () do
-      if user.id ~= client.authentified.id then
-        naouna = user
-      end
-    end
+    local naouna = Client.new {
+      url   = server_url,
+      token = make_token (identities.naouna),
+    }.authentified
     local project = client:create_project ()
     project.permissions.anonymous = "read"
     project.permissions.user      = "write"
     project.permissions [naouna]  = "admin"
+    project:delete ()
   end)
 
   it ("can remove permission", function ()
@@ -551,15 +561,14 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local naouna
-    for user in client:users () do
-      if user.id ~= client.authentified.id then
-        naouna = user
-      end
-    end
+    local naouna = Client.new {
+      url   = server_url,
+      token = make_token (identities.naouna),
+    }.authentified
     local project = client:create_project ()
     project.permissions [naouna]  = "admin"
     project.permissions [naouna]  = nil
+    project:delete ()
   end)
 
   -- ======================================================================
@@ -573,6 +582,7 @@ describe ("cosy client", function ()
     }
     local project = client:create_project {}
     project:create_resource {}
+    project:delete ()
   end)
 
   it ("can list resources", function ()
@@ -587,11 +597,15 @@ describe ("cosy client", function ()
       name        = "name",
       description = "description",
     }
+    local count = 0
     for resource in project:resources () do
       assert.is_not_nil (resource.id)
       assert.is_not_nil (resource.name)
       assert.is_not_nil (resource.description)
+      count = count + 1
     end
+    assert.are.equal (count, 1)
+    project:delete ()
   end)
 
   it ("can access resource info", function ()
@@ -609,10 +623,11 @@ describe ("cosy client", function ()
     for resource in project:resources () do
       assert.is_not_nil (resource.name)
       assert.is_not_nil (resource.description)
-      for _, v in pairs (resource) do
+      for _, v in resource:__pairs () do
         assert (v)
       end
     end
+    project:delete ()
   end)
 
   it ("can update resource info", function ()
@@ -622,9 +637,10 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local project  = client:create_project {}
+    local project  = client :create_project  {}
     local resource = project:create_resource {}
     resource.name = "name"
+    project:delete ()
   end)
 
   it ("can delete resource", function ()
@@ -634,9 +650,113 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local project  = client:create_project {}
+    local project  = client :create_project  {}
     local resource = project:create_resource {}
     resource:delete ()
+    project:delete ()
+  end)
+
+  -- ======================================================================
+
+  it ("can create execution (resource variant)", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client :create_project  {}
+    local resource = project:create_resource {}
+    resource:execute "sylvainlasnier/echo"
+    project:delete ()
+  end)
+
+  it ("can create execution (project variant)", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client :create_project  {}
+    local resource = project:create_resource {}
+    project:execute (resource, "sylvainlasnier/echo")
+    project:delete ()
+  end)
+
+  it ("can list executions", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client :create_project  {}
+    local resource = project:create_resource {}
+    resource:execute ("sylvainlasnier/echo", {
+      name        = "name",
+      description = "description",
+    })
+    local count = 0
+    for execution in project:executions () do
+      assert.is_not_nil (execution.id)
+      assert.is_not_nil (execution.name)
+      assert.is_not_nil (execution.description)
+      count = count + 1
+    end
+    assert.are.equal (count, 1)
+    project:delete ()
+  end)
+
+  it ("can access execution info", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client :create_project  {}
+    local resource = project:create_resource {}
+    resource:execute ("sylvainlasnier/echo", {
+      name        = "name",
+      description = "description",
+    })
+    for execution in project:executions () do
+      assert.is_not_nil (execution.name)
+      assert.is_not_nil (execution.description)
+      for _, v in execution:__pairs () do
+        assert (v)
+      end
+    end
+    project:delete ()
+  end)
+
+  it ("can update execution info", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project   = client :create_project  {}
+    local resource  = project:create_resource {}
+    local execution = resource:execute ("sylvainlasnier/echo")
+    execution.name = "name"
+    project:delete ()
+  end)
+
+  it ("can delete execution", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project   = client :create_project  {}
+    local resource  = project:create_resource {}
+    local execution = resource:execute ("sylvainlasnier/echo")
+    execution:delete ()
+    project:delete ()
   end)
 
   -- ======================================================================
