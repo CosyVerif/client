@@ -1,5 +1,4 @@
 local Coromake  = require "coroutine.make"
-_G.coroutine    = Coromake ()
 local Copas     = require "copas"
 local Json      = require "dkjson"
 local Layer     = require "layeredata"
