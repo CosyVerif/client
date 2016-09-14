@@ -1,6 +1,6 @@
 local Coromake  = require "coroutine.make"
 local Copas     = require "copas"
-local Json      = require "dkjson"
+local Json      = require "cjson"
 local Layer     = require "layeredata"
 local Websocket = require "websocket"
 local Http      = require "cosy.client.http"

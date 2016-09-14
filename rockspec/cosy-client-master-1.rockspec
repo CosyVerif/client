@@ -22,6 +22,7 @@ dependencies = {
   "copas",
   "etlua",
   "i18n",
+  "lua-cjson",
   "lua-websockets",
   "layeredata",
   "luafilesystem",

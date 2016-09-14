@@ -1,3 +1,5 @@
+require "copas"
+
 local Arguments = require "argparse"
 local Colors    = require "ansicolors"
 local Json      = require "cjson"
