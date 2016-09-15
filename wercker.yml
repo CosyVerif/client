@@ -2,10 +2,19 @@ box: cosyverif/lua-environments
 build:
   steps:
     - script:
+        name: "remove incompatible versions" # FIXME
+        code: |
+          rm -rf /lua/lua51-none
+          rm -rf /lua/lua51-all
+          rm -rf /lua/lua52-*
+          rm -rf /lua/lua53-*
+          rm -rf /lua/luajit*
+    - script:
         name: "install"
         code: |
           for dir in /lua/*; do
             if [ -d "${dir}" ]; then
+              "${dir}/bin/luarocks" install https://raw.githubusercontent.com/un-def/hashids.lua/master/hashids-1.0.2-1.rockspec
               "${dir}/bin/luarocks" make rockspec/cosy-client-env-master-1.rockspec
               "${dir}/bin/luarocks" make rockspec/cosy-client-master-1.rockspec
             fi

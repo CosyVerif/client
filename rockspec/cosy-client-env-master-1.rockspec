@@ -19,7 +19,7 @@ dependencies = {
   "lua >= 5.1",
   "busted",
   "cluacov",
-  "hashids",
+  -- "hashids",
   "jwt",
   "luacheck",
   "luacov",
