@@ -77,6 +77,18 @@ parser:mutex (
 local commands = {}
 parser:command_target "command"
 parser:require_command (false)
+
+local function toresource (x)
+  local project, resource = x:match "^([^/]+)/([^/]+)$"
+  if not project or not resource then
+    error "resource must be in the format 'project/resource'"
+  end
+  return {
+    project  = project,
+    resource = resource,
+  }
+end
+
 commands.info = parser:command "info" {
   description = i18n ["description:info"] % {},
 }
@@ -90,6 +102,7 @@ commands.tag.of = parser:command "tag:info" {
 commands.tag.of:argument "tag" {
   description = i18n ["description:tag"] % {},
 }
+
 commands.user = {}
 commands.user.list = parser:command "user:list" {
   description = i18n ["description:user:list"] % {},
@@ -112,6 +125,7 @@ commands.user.delete = parser:command "user:delete" {
 commands.user.delete:argument "user" {
   description = i18n ["description:user-id"] % {},
 }
+
 commands.project = {}
 commands.project.list = parser:command "project:list" {
   description = i18n ["description:project:list"] % {},
@@ -185,6 +199,7 @@ commands.project.unstar = parser:command "project:unstar" {
 commands.project.unstar:argument "project" {
   description = i18n ["description:project-id"] % {},
 }
+
 commands.permissions = {}
 commands.permissions.set = parser:command "permissions:set" {
   description = i18n ["description:permissions:set"] % {},
@@ -216,6 +231,7 @@ commands.permissions.unset:argument "project" {
 commands.permissions.unset:argument "identifier" {
   description = i18n ["description:identifier"] % {},
 }
+
 commands.resource = {}
 commands.resource.list = parser:command "resource:list" {
   description = i18n ["description:resource:list"] % {},
@@ -232,11 +248,9 @@ commands.resource.create:argument "project" {
 commands.resource.info = parser:command "resource:info" {
   description = i18n ["description:resource:info"] % {},
 }
-commands.resource.info:argument "project" {
-  description = i18n ["description:project-id"] % {},
-}
 commands.resource.info:argument "resource" {
   description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
 }
 commands.resource.update = parser:command "resource:update" {
   description = i18n ["description:resource:update"] % {},
@@ -247,20 +261,64 @@ commands.resource.update:option "--name" {
 commands.resource.update:option "--description" {
   description = i18n ["description:description"] % {},
 }
-commands.resource.update:argument "project" {
-  description = i18n ["description:project-id"] % {},
-}
 commands.resource.update:argument "resource" {
   description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
 }
 commands.resource.delete = parser:command "resource:delete" {
   description = i18n ["description:resource:delete"] % {},
 }
-commands.resource.delete:argument "project" {
-  description = i18n ["description:project-id"] % {},
-}
 commands.resource.delete:argument "resource" {
   description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
+}
+
+commands.execution = {}
+commands.execution.list = parser:command "execution:list" {
+  description = i18n ["description:execution:list"] % {},
+}
+commands.execution.list:argument "project" {
+  description = i18n ["description:project-id"] % {},
+}
+commands.execution.create = parser:command "execution:create" {
+  description = i18n ["description:execution:create"] % {},
+}
+commands.execution.create:argument "project" {
+  description = i18n ["description:project-id"] % {},
+}
+commands.execution.create:argument "resource" {
+  description = i18n ["description:resource-url"] % {},
+  convert     = toresource,
+}
+commands.execution.create:argument "image" {
+  description = i18n ["description:image-url"] % {},
+}
+commands.execution.info = parser:command "execution:info" {
+  description = i18n ["description:execution:info"] % {},
+}
+commands.execution.info:argument "execution" {
+  description = i18n ["description:execution-id"] % {},
+  convert     = toresource,
+}
+commands.execution.update = parser:command "execution:update" {
+  description = i18n ["description:execution:update"] % {},
+}
+commands.execution.update:option "--name" {
+  description = i18n ["description:name"] % {},
+}
+commands.execution.update:option "--description" {
+  description = i18n ["description:description"] % {},
+}
+commands.execution.update:argument "execution" {
+  description = i18n ["description:execution-id"] % {},
+  convert     = toresource,
+}
+commands.execution.delete = parser:command "execution:delete" {
+  description = i18n ["description:execution:delete"] % {},
+}
+commands.execution.delete:argument "execution" {
+  description = i18n ["description:execution-id"] % {},
+  convert     = toresource,
 }
 
 local arguments = parser:parse ()
@@ -334,7 +392,7 @@ do
   end
 end
 
-local ok, result = pcall (function ()
+local ok, result = xpcall (function ()
   if arguments.command == "info" then
     return client:info ()
   elseif arguments.command == "permissions:set" then
@@ -410,12 +468,12 @@ local ok, result = pcall (function ()
     resource:load ()
     return resource.data
   elseif arguments.command == "resource:delete" then
-    local project  = client:project   (arguments.project)
-    local resource = project:resource (arguments.resource)
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
     return resource:delete ()
   elseif arguments.command == "resource:info" then
-    local project  = client:project   (arguments.project)
-    local resource = project:resource (arguments.resource)
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
     return resource.data
   elseif arguments.command == "resource:list" then
     local project  = client:project (arguments.project)
@@ -426,9 +484,39 @@ local ok, result = pcall (function ()
     end
     return result
   elseif arguments.command == "resource:update" then
-    local project  = client:project   (arguments.project)
-    local resource = project:resource (arguments.resource)
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
     return resource:update {
+      name        = arguments.name,
+      description = arguments.description,
+    }
+  elseif arguments.command == "execution:create" then
+    local project   = client:project (arguments.project)
+    local rproject  = client:project (arguments.resource.project)
+    local resource  = rproject:resource (arguments.resource.resource)
+    local execution = project:execute (resource, arguments.image)
+    execution:load ()
+    return execution.data
+  elseif arguments.command == "execution:delete" then
+    local project   = client:project   (arguments.execution.project)
+    local execution = project:execution (arguments.execution.resource)
+    return execution:delete ()
+  elseif arguments.command == "execution:info" then
+    local project   = client:project   (arguments.execution.project)
+    local execution = project:execution (arguments.execution.resource)
+    return execution.data
+  elseif arguments.command == "execution:list" then
+    local project = client:project (arguments.project)
+    local result  = {}
+    for execution in project:executions () do
+      execution:load ()
+      result [#result+1] = execution.data
+    end
+    return result
+  elseif arguments.command == "execution:update" then
+    local project   = client:project   (arguments.execution.project)
+    local execution = project:execution (arguments.execution.resource)
+    return execution:update {
       name        = arguments.name,
       description = arguments.description,
     }
@@ -457,6 +545,8 @@ local ok, result = pcall (function ()
     local user = client:user (arguments.user)
     return user:update {}
   end
+end, function (err)
+  print (err, debug.traceback ())
 end)
 
 if ok then

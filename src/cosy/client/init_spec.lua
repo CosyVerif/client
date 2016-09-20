@@ -84,8 +84,12 @@ describe ("cosy client", function ()
       body    = {
         name     = id,
         services = {
-          { name  = "database",
+          { name  = "postgres",
             image = "postgres",
+          },
+          { name  = "redis",
+            image = "redis:3.0.7",
+            tags  = { Config.branch },
           },
           { name  = "api",
             image = Et.render ("cosyverif/server:<%- branch %>", {
@@ -95,14 +99,15 @@ describe ("cosy client", function ()
               "8080",
             },
             links = {
-              "database",
+              "postgres",
+              "redis",
             },
             environment = {
-              RESOLVERS         = "127.0.0.11",
+              NPROC             = 2,
               COSY_PREFIX       = "/usr/local",
-              COSY_HOST         = "api:8080",
               COSY_BRANCH       = branch,
-              POSTGRES_HOST     = "database",
+              REDIS_PORT        = "tcp://redis:6379",
+              POSTGRES_PORT     = "tcp://postgres:5432",
               POSTGRES_USER     = "postgres",
               POSTGRES_PASSWORD = "",
               POSTGRES_DATABASE = "postgres",

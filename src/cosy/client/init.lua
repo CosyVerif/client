@@ -46,7 +46,7 @@ function Client.new (options)
     result [k] = v
   end
   if info.authentified then
-    result.authentified = User.__new (result, info.authentified.id)
+    result.authentified = User.__new (result, info.authentified.url)
   end
   return result
 end
@@ -76,10 +76,11 @@ function Client.tags (client)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, tag in ipairs (data) do
+    for _, tag in ipairs (data.tags) do
       coroutine.yield {
         client = client,
         id     = tag.id,
+        url    = tag.url,
         count  = tag.count,
       }
     end
@@ -98,12 +99,11 @@ function Client.tagged (client, tag)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, t in ipairs (data) do
+    for _, t in ipairs (data.tags) do
       coroutine.yield {
         id      = t.id,
-        user    = User   .__new (client, t.user_id),
-        project = Project.__new (client, t.project_id),
-        data    = false,
+        user    = User   .__new (client, t.user),
+        project = Project.__new (client, t.project),
       }
     end
   end)
@@ -123,30 +123,30 @@ function Client.users (client)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, user in ipairs (data) do
-      coroutine.yield (User.__new (client, user.id))
+    for _, user in ipairs (data.users) do
+      coroutine.yield (User.__new (client, user.url))
     end
   end)
 end
 
 function Client.user (client, id)
   assert (getmetatable (client) == Client)
-  local user = User.__new (client, id)
+  local user = User.__new (client, "/users/" .. id)
   User.load (user)
   return user
 end
 
-function User.__new (client, id)
+function User.__new (client, path)
   assert (getmetatable (client) == Client)
-  local result = client.unique.users [id]
+  local result = client.unique.users [path]
   if not result then
     result = setmetatable ({
       client = client,
-      id     = id,
+      path   = path,
       data   = false,
-      url    = client.url .. "/users/" .. id,
+      url    = client.url .. path,
     }, User)
-    client.unique.users [id] = result
+    client.unique.users [path] = result
   end
   return result
 end
@@ -226,15 +226,15 @@ end
 
 -- ======================================================================
 
-function Project.__new (client, id)
+function Project.__new (client, path)
   assert (getmetatable (client) == Client)
-  local result = client.unique.projects [id]
+  local result = client.unique.projects [path]
   if not result then
     result = {
       client = client,
-      id     = id,
+      path   = path,
       data   = false,
-      url    = client.url .. "/projects/" .. id,
+      url    = client.url .. path,
     }
     result.permissions = setmetatable ({
       client  = client,
@@ -242,7 +242,7 @@ function Project.__new (client, id)
       data    = false,
     }, Permissions)
     result = setmetatable (result, Project)
-    client.unique.projects [id] = result
+    client.unique.projects [path] = result
   end
   return result
 end
@@ -259,15 +259,15 @@ function Client.projects (client)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, project in ipairs (data) do
-      coroutine.yield (Project.__new (client, project.id))
+    for _, project in ipairs (data.projects) do
+      coroutine.yield (Project.__new (client, project.url))
     end
   end)
 end
 
 function Client.project (client, id)
   assert (getmetatable (client) == Client)
-  local project = Project.__new (client, id)
+  local project = Project.__new (client, "/projects/" .. id)
   Project.load (project)
   return project
 end
@@ -284,7 +284,7 @@ function Client.create_project (client, t)
     body    = t,
   }
   assert (status == 201, { status = status })
-  return Project.__new (client, data.id)
+  return Project.__new (client, data.url)
 end
 
 function Project.load (project)
@@ -373,12 +373,11 @@ function Project.tags (project)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, tag in ipairs (data) do
+    for _, tag in ipairs (data.tags) do
       coroutine.yield {
         id      = tag.id,
-        user    = User   .__new (client, tag.user_id),
-        project = Project.__new (client, tag.project_id),
-        data    = false,
+        user    = User   .__new (client, tag.user),
+        project = Project.__new (client, tag.project),
       }
     end
   end)
@@ -425,8 +424,11 @@ function Project.stars (project)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, star in ipairs (data) do
-      coroutine.yield (star)
+    for _, star in ipairs (data.stars) do
+      coroutine.yield {
+        user    = User   .__new (client, star.user),
+        project = Project.__new (client, star.project),
+      }
     end
   end)
 end
@@ -468,7 +470,7 @@ function Permissions.load (permissions)
   end
   local client = permissions.client
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. permissions.project.id .. "/permissions/",
+    url     = client.url .. permissions.project.url .. "/permissions/",
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -481,24 +483,10 @@ function Permissions.load (permissions)
   }
   for _, granted in ipairs (data.granted) do
     local who
-    local _, user_status = Http.json {
-      url     = client.url .. "/users/" .. granted.identity_id,
-      method  = "GET",
-      headers = {
-        Authorization = client.token and "Bearer " .. client.token,
-      },
-    }
-    local _, project_status = Http.json {
-      url     = client.url .. "/projects/" .. granted.identity_id,
-      method  = "GET",
-      headers = {
-        Authorization = client.token and "Bearer " .. client.token,
-      },
-    }
-    if user_status == 200 then
-      who = User.__new (client, granted.identity_id)
-    elseif project_status == 200 then
-      who = Project.__new (client, granted.identity_id)
+    if granted.type == "user" then
+      who = User   .__new (client, granted.who)
+    elseif granted.type == "project" then
+      who = Project.__new (client, granted.who)
     end
     permissions.data [who] = granted.permission
   end
@@ -558,20 +546,20 @@ end
 
 -- ======================================================================
 
-function Resource.__new (project, id)
+function Resource.__new (project, path)
   assert (getmetatable (project) == Project)
   local client = project.client
-  local result = client.unique.resources [id]
+  local result = client.unique.resources [path]
   if not result then
     result = {
       client  = client,
       project = project,
-      id      = id,
+      path    = path,
       data    = false,
-      url     = client.url .. "/projects/" .. project.id .. "/resources/" .. id,
+      url     = client.url .. path,
     }
     result = setmetatable (result, Resource)
-    client.unique.resources [id] = result
+    client.unique.resources [path] = result
   end
   return result
 end
@@ -580,7 +568,7 @@ function Project.create_resource (project, t)
   assert (getmetatable (project) == Project)
   local client = project.client
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/resources/",
+    url     = project.url .. "/resources/",
     method  = "POST",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -588,14 +576,14 @@ function Project.create_resource (project, t)
     body    = t,
   }
   assert (status == 201, { status = status })
-  return Resource.__new (project, data.id)
+  return Resource.__new (project, data.url)
 end
 
 function Project.resources (project)
   assert (getmetatable (project) == Project)
   local client = project.client
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/resources/",
+    url     = project.url .. "/resources/",
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -604,15 +592,15 @@ function Project.resources (project)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, resource in ipairs (data) do
-      coroutine.yield (Resource.__new (project, resource.id))
+    for _, resource in ipairs (data.resources) do
+      coroutine.yield (Resource.__new (project, resource.url))
     end
   end)
 end
 
 function Project.resource (project, id)
   assert (getmetatable (project) == Project)
-  local resource = Resource.__new (project, id)
+  local resource = Resource.__new (project, project.path .. "/resources/" .. id)
   Resource.load (resource)
   return resource
 end
@@ -693,20 +681,20 @@ end
 
 -- ======================================================================
 
-function Execution.__new (project, id)
+function Execution.__new (project, path)
   assert (getmetatable (project) == Project)
   local client = project.client
-  local result = client.unique.executions [id]
+  local result = client.unique.executions [path]
   if not result then
     result = {
       client  = client,
       project = project,
-      id      = id,
+      path    = path,
       data    = false,
-      url     = client.url .. "/projects/" .. project.id .. "/executions/" .. id,
+      url     = client.url .. path,
     }
     result = setmetatable (result, Execution)
-    client.unique.executions [id] = result
+    client.unique.executions [path] = result
   end
   return result
 end
@@ -730,22 +718,22 @@ function Project.execute (project, resource, image, options)
     t [k] = v
   end
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/executions/",
+    url     = project.url .. "/executions/",
     method  = "POST",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
     },
     body    = t,
   }
-  assert (status == 201, { status = status })
-  return Execution.__new (project, data.id)
+  assert (status == 202, { status = status })
+  return Execution.__new (project, data.url)
 end
 
 function Project.executions (project)
   assert (getmetatable (project) == Project)
   local client = project.client
   local data, status = Http.json {
-    url     = client.url .. "/projects/" .. project.id .. "/executions/",
+    url     = project.url .. "/executions/",
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -754,15 +742,15 @@ function Project.executions (project)
   assert (status == 200, { status = status })
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    for _, execution in ipairs (data) do
-      coroutine.yield (Execution.__new (project, execution.id))
+    for _, execution in ipairs (data.executions) do
+      coroutine.yield (Execution.__new (project, execution.url))
     end
   end)
 end
 
 function Project.execution (project, id)
   assert (getmetatable (project) == Project)
-  local execution = Execution.__new (project, id)
+  local execution = Execution.__new (project, project.path .. "/executions/" .. id)
   Execution.load (execution)
   return execution
 end

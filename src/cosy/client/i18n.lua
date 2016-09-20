@@ -92,6 +92,30 @@ return {
   ["description:resource:update"] = {
     en = "update resource information",
   },
+  ["description:resource-url"] = {
+    en = "resource url",
+  },
+  ["description:image-url"] = {
+    en = "docker image identifier",
+  },
+  ["description:execution-id"] = {
+    en = "execution identifier",
+  },
+  ["description:execution:create"] = {
+    en = "create an execution",
+  },
+  ["description:execution:delete"] = {
+    en = "delete an execution",
+  },
+  ["description:execution:info"] = {
+    en = "show execution information",
+  },
+  ["description:execution:list"] = {
+    en = "list all executions",
+  },
+  ["description:execution:update"] = {
+    en = "update execution information",
+  },
   ["description:server"] = {
     en = "server to use",
   },
