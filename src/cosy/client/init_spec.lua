@@ -193,6 +193,20 @@ describe ("cosy client", function ()
 
   teardown (function ()
     while true do
+      local info, status = Http.json {
+        url    = server_url,
+        method = "GET",
+      }
+      assert.are.equal (status, 200)
+      if info.stats.dockers == 0 then
+        break
+      end
+      os.execute [[ sleep 1 ]]
+    end
+  end)
+
+  teardown (function ()
+    while true do
       local _, deleted_status = Http.json {
         url     = docker_url,
         method  = "DELETE",
@@ -488,8 +502,8 @@ describe ("cosy client", function ()
     local count   = 0
     project:star ()
     for star in project:stars () do
-      assert.is_not_nil (star.user_id)
-      assert.is_not_nil (star.project_id)
+      assert.is_not_nil (star.user)
+      assert.is_not_nil (star.project)
       count = count + 1
     end
     assert.are.equal (count, 1)

@@ -46,7 +46,7 @@ function Client.new (options)
     result [k] = v
   end
   if info.authentified then
-    result.authentified = User.__new (result, info.authentified.url)
+    result.authentified = User.__new (result, info.authentified.path)
   end
   return result
 end
@@ -80,7 +80,7 @@ function Client.tags (client)
       coroutine.yield {
         client = client,
         id     = tag.id,
-        url    = tag.url,
+        path   = tag.path,
         count  = tag.count,
       }
     end
@@ -124,7 +124,7 @@ function Client.users (client)
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
     for _, user in ipairs (data.users) do
-      coroutine.yield (User.__new (client, user.url))
+      coroutine.yield (User.__new (client, user.path))
     end
   end)
 end
@@ -260,7 +260,7 @@ function Client.projects (client)
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
     for _, project in ipairs (data.projects) do
-      coroutine.yield (Project.__new (client, project.url))
+      coroutine.yield (Project.__new (client, project.path))
     end
   end)
 end
@@ -284,7 +284,7 @@ function Client.create_project (client, t)
     body    = t,
   }
   assert (status == 201, { status = status })
-  return Project.__new (client, data.url)
+  return Project.__new (client, data.path)
 end
 
 function Project.load (project)
@@ -470,7 +470,7 @@ function Permissions.load (permissions)
   end
   local client = permissions.client
   local data, status = Http.json {
-    url     = client.url .. permissions.project.url .. "/permissions/",
+    url     = client.url .. permissions.project.path .. "/permissions/",
     method  = "GET",
     headers = {
       Authorization = client.token and "Bearer " .. client.token,
@@ -508,7 +508,7 @@ function Permissions.__newindex (permissions, key, value)
   key = type (key) == "string" and key or key.id
   if value == nil then
     local _, status = Http.json {
-      url     = client.url .. "/projects/" .. permissions.project.id .. "/permissions/" .. key,
+      url     = client.url .. permissions.project.path .. "/permissions/" .. key,
       method  = "DELETE",
       headers = {
         Authorization = client.token and "Bearer " .. client.token,
@@ -517,7 +517,7 @@ function Permissions.__newindex (permissions, key, value)
     assert (status == 204)
   else
     local _, status = Http.json {
-      url     = client.url .. "/projects/" .. permissions.project.id .. "/permissions/" .. key,
+      url     = client.url .. permissions.project.path .. "/permissions/" .. key,
       method  = "PUT",
       headers = {
         Authorization = client.token and "Bearer " .. client.token,
@@ -576,7 +576,7 @@ function Project.create_resource (project, t)
     body    = t,
   }
   assert (status == 201, { status = status })
-  return Resource.__new (project, data.url)
+  return Resource.__new (project, data.path)
 end
 
 function Project.resources (project)
@@ -593,7 +593,7 @@ function Project.resources (project)
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
     for _, resource in ipairs (data.resources) do
-      coroutine.yield (Resource.__new (project, resource.url))
+      coroutine.yield (Resource.__new (project, resource.path))
     end
   end)
 end
@@ -711,7 +711,7 @@ function Project.execute (project, resource, image, options)
   assert (type (image) == "string")
   local client = project.client
   local t      = {
-    resource = resource.url,
+    resource = client.url .. resource.path,
     image    = image,
   }
   for k, v in pairs (options or {}) do
@@ -726,7 +726,7 @@ function Project.execute (project, resource, image, options)
     body    = t,
   }
   assert (status == 202, { status = status })
-  return Execution.__new (project, data.url)
+  return Execution.__new (project, data.path)
 end
 
 function Project.executions (project)
@@ -743,7 +743,7 @@ function Project.executions (project)
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
     for _, execution in ipairs (data.executions) do
-      coroutine.yield (Execution.__new (project, execution.url))
+      coroutine.yield (Execution.__new (project, execution.path))
     end
   end)
 end
@@ -783,7 +783,7 @@ function Execution.delete (execution)
       Authorization = client.token and "Bearer " .. client.token,
     },
   }
-  assert (status == 204, { status = status })
+  assert (status == 202, { status = status })
   execution.data = false
 end
 
