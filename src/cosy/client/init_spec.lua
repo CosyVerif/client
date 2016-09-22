@@ -1,11 +1,8 @@
-local _       = require "copas"
-local Et      = require "etlua"
-local Hashids = require "hashids"
-local Json    = require "cjson"
-local Jwt     = require "jwt"
-local Mime    = require "mime"
-local Time    = require "socket".gettime
-local Http    = require "cosy.client.http"
+local _        = require "copas"
+local Jwt      = require "jwt"
+local Time     = require "socket".gettime
+local Http     = require "cosy.client.http"
+local Instance = require "cosy.server.instance"
 
 local Config = {
   auth0       = {
@@ -56,139 +53,13 @@ local function make_false_token (subject, contents, duration)
   })
 end
 
-local branch = assert (os.getenv "COSY_BRANCH" or os.getenv "WERCKER_GIT_BRANCH")
-if not branch or branch == "master" then
-  local file = assert (io.popen ("git rev-parse --abbrev-ref HEAD", "r"))
-  branch = assert (file:read "*line")
-  file:close ()
-end
-
 describe ("cosy client", function ()
 
-  local server_url, docker_url
-  local headers = {
-    ["Authorization"] = "Basic " .. Mime.b64 (Config.docker.username .. ":" .. Config.docker.api_key),
-    ["Accept"       ] = "application/json",
-    ["Content-type" ] = "application/json",
-  }
+  local instance, server_url
 
   setup (function ()
-    local url = "https://cloud.docker.com"
-    local api = url .. "/api/app/v1"
-    -- Create service:
-    local id  = branch .. "-" .. Hashids.new (tostring (os.time ())):encode (666)
-    local stack, stack_status = Http.json {
-      url     = api .. "/stack/",
-      method  = "POST",
-      headers = headers,
-      body    = {
-        name     = id,
-        services = {
-          { name  = "postgres",
-            image = "postgres",
-          },
-          { name  = "redis",
-            image = "redis:3.0.7",
-            tags  = { Config.branch },
-          },
-          { name  = "api",
-            image = Et.render ("cosyverif/server:<%- branch %>", {
-              branch = branch,
-            }),
-            ports = {
-              "8080",
-            },
-            links = {
-              "postgres",
-              "redis",
-            },
-            environment = {
-              NPROC             = 2,
-              COSY_PREFIX       = "/usr/local",
-              COSY_BRANCH       = branch,
-              REDIS_PORT        = "tcp://redis:6379",
-              POSTGRES_PORT     = "tcp://postgres:5432",
-              POSTGRES_USER     = "postgres",
-              POSTGRES_PASSWORD = "",
-              POSTGRES_DATABASE = "postgres",
-              AUTH0_DOMAIN      = Config.auth0.domain,
-              AUTH0_ID          = Config.auth0.client_id,
-              AUTH0_SECRET      = Config.auth0.client_secret,
-              AUTH0_TOKEN       = Config.auth0.api_token,
-              DOCKER_USER       = Config.docker.username,
-              DOCKER_SECRET     = Config.docker.api_key,
-            },
-          },
-        },
-      },
-    }
-    assert (stack_status == 201)
-    -- Start service:
-    local resource = url .. stack.resource_uri
-    local _, started_status = Http.json {
-      url        = resource .. "start/",
-      method     = "POST",
-      headers    = headers,
-      timeout    = 5, -- seconds
-    }
-    assert (started_status == 202)
-    local services
-    do
-      local result, status
-      while true do
-        result, status = Http.json {
-          url     = resource,
-          method  = "GET",
-          headers = headers,
-        }
-        if status == 200 and result.state:lower () ~= "starting" then
-          services = result.services
-          break
-        else
-          os.execute "sleep 1"
-        end
-      end
-      assert (result.state:lower () == "running")
-    end
-    for _, path in ipairs (services) do
-      local service, service_status = Http.json {
-        url     = url .. path,
-        method  = "GET",
-        headers = headers,
-      }
-      assert (service_status == 200)
-      if service.name == "api" then
-        local container, container_status = Http.json {
-          url     = url .. service.containers [1],
-          method  = "GET",
-          headers = headers,
-        }
-        assert (container_status == 200)
-        docker_url = resource
-        for _, port in ipairs (container.container_ports) do
-          local endpoint = port.endpoint_uri
-          if endpoint and endpoint ~= Json.null then
-            if endpoint:sub (-1) == "/" then
-              endpoint = endpoint:sub (1, #endpoint-1)
-            end
-            server_url = endpoint
-            for _ = 1, 5 do
-              local _, status = Http.json {
-                url     = server_url,
-                method  = "GET",
-              }
-              if status == 200 then
-                return
-              else
-                os.execute "sleep 1"
-              end
-            end
-            assert (false)
-          end
-        end
-      end
-    end
-    assert (false)
+    instance   = Instance.create ()
+    server_url = instance.server
   end)
 
   teardown (function ()
@@ -206,18 +77,7 @@ describe ("cosy client", function ()
   end)
 
   teardown (function ()
-    while true do
-      local _, deleted_status = Http.json {
-        url     = docker_url,
-        method  = "DELETE",
-        headers = headers,
-      }
-      if deleted_status == 202 or deleted_status == 404 then
-        break
-      else
-        os.execute "sleep 1"
-      end
-    end
+    instance:delete ()
   end)
 
   -- ======================================================================

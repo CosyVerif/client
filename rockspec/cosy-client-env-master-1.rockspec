@@ -19,6 +19,7 @@ dependencies = {
   "lua >= 5.1",
   "busted",
   "cluacov",
+  "cosy-server",
   -- "hashids",
   "jwt",
   "luacheck",
