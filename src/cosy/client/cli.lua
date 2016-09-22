@@ -568,7 +568,9 @@ if ok then
     print (Colors ("%{red blackbg}" .. i18n ["invalid-output"] % {}))
     os.exit (3)
   end
-  print (Colors ("%{green blackbg}" .. result))
+  if result ~= nil then
+    print (Colors ("%{green blackbg}" .. result))
+  end
 else
   print (Colors ("%{red blackbg}" .. i18n ["command-error"] % {
     error = Json.encode (result),
