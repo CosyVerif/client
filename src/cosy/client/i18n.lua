@@ -17,6 +17,9 @@ return {
   ["description:info"] = {
     en = "show server information",
   },
+  ["description:shell"] = {
+    en = "output in raw text",
+  },
   ["description:json"] = {
     en = "output in JSON format",
   },

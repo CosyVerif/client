@@ -64,6 +64,9 @@ parser:option "--authentication" {
   description = i18n ["description:authentication"] % {},
 }
 parser:mutex (
+  parser:flag "--shell" {
+    description = i18n ["description:shell"] % {},
+  },
   parser:flag "--json" {
     description = i18n ["description:json"] % {},
   },
@@ -346,6 +349,9 @@ profile.server         = arguments.server
 profile.authentication = arguments.authentication
                      and arguments.authentication
                       or profile.authentication
+profile.output         = arguments.shell
+                     and "shell"
+                      or profile.output
 profile.output         = arguments.json
                      and "json"
                       or profile.output
@@ -355,7 +361,7 @@ profile.output         = arguments.lua
 profile.output         = arguments.yaml
                      and "yaml"
                       or profile.output
-profile.output = profile.output or "yaml"
+profile.output = profile.output or "shell"
 
 if not arguments.command then
   arguments.command = "info"
@@ -550,7 +556,14 @@ end, function (err)
 end)
 
 if ok then
-  if profile.output == "json" then
+  if profile.output == "shell" then
+    if type (result) == "table" then
+      result = result.id
+    end
+    if result ~= nil then
+      result = tostring (result)
+    end
+  elseif profile.output == "json" then
     result = result and Json.encode (result)
   elseif profile.output == "lua" then
     result = result and Serpent.block (result, {
@@ -569,11 +582,15 @@ if ok then
     os.exit (3)
   end
   if result ~= nil then
-    print (Colors ("%{green blackbg}" .. result))
+    if profile.output == "shell" then
+      print (result)
+    else
+      print (Colors ("%{green blackbg}" .. result))
+    end
   end
 else
-  print (Colors ("%{red blackbg}" .. i18n ["command-error"] % {
+  io.stderr:write (Colors ("%{red blackbg}" .. i18n ["command-error"] % {
     error = Json.encode (result),
-  }))
+  }) .. "\n")
   os.exit (4)
 end
