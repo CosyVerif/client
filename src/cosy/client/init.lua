@@ -623,6 +623,49 @@ function Resource.load (resource)
   return resource
 end
 
+function Resource.edit (resource)
+  assert (getmetatable (resource) == Resource)
+  local client    = resource.client
+  local _, status = Http.json {
+    url      = resource.url .. "/editor",
+    method   = "GET",
+    redirect = false,
+    headers  = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 202 or status == 302, status)
+  local headers
+  for _ = 1, 60 do
+    _, status, headers = Http.json {
+      url      = resource.url .. "/editor",
+      method   = "GET",
+      redirect = false,
+      headers  = {
+        Authorization = client.token and "Bearer " .. client.token,
+      },
+    }
+    if status == 302 then
+      return headers.location
+    end
+    os.execute [[ sleep 1 ]]
+  end
+  assert (false, status)
+end
+
+function Resource.close (resource)
+  assert (getmetatable (resource) == Resource)
+  local client    = resource.client
+  local _, status = Http.json {
+    url      = resource.url .. "/editor",
+    method   = "DELETE",
+    headers  = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 202, status)
+end
+
 function Resource.delete (resource)
   assert (getmetatable (resource) == Resource)
   local client    = resource.client

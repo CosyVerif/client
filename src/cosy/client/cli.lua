@@ -275,6 +275,20 @@ commands.resource.delete:argument "resource" {
   description = i18n ["description:resource-id"] % {},
   convert     = toresource,
 }
+commands.resource.edit = parser:command "resource:edit" {
+  description = i18n ["description:resource:delete"] % {},
+}
+commands.resource.edit:argument "resource" {
+  description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
+}
+commands.resource.close = parser:command "resource:close" {
+  description = i18n ["description:resource:close"] % {},
+}
+commands.resource.close:argument "resource" {
+  description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
+}
 
 commands.execution = {}
 commands.execution.list = parser:command "execution:list" {
@@ -477,6 +491,14 @@ local ok, result = xpcall (function ()
     local project  = client:project   (arguments.resource.project)
     local resource = project:resource (arguments.resource.resource)
     return resource:delete ()
+  elseif arguments.command == "resource:edit" then
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
+    return resource:edit ()
+  elseif arguments.command == "resource:close" then
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
+    return resource:close ()
   elseif arguments.command == "resource:info" then
     local project  = client:project   (arguments.resource.project)
     local resource = project:resource (arguments.resource.resource)
