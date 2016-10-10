@@ -18,10 +18,10 @@ function M.json (options)
   local http = options.url:match "https://"
            and Https
             or Http
-  local status, _
+  local status, headers, _
   local retry = 10
   repeat
-    _, status, _, _ = http.request (options)
+    _, status, headers, _ = http.request (options)
     if type (status) ~= "number" then
       return nil, status
     elseif status == 500 then
@@ -33,9 +33,12 @@ function M.json (options)
     end
     retry = retry - 1
   until status < 500
-  result = #result ~= 0
-       and Json.decode (table.concat (result))
-  return result, status
+  result = table.concat (result)
+  local ok, json = pcall (Json.decode, result)
+  if ok then
+    result = json
+  end
+  return result, status, headers
 end
 
 return M
