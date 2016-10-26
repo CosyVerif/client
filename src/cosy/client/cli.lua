@@ -92,6 +92,18 @@ local function toresource (x)
   }
 end
 
+local function toexecution (x)
+  local project, resource, execution = x:match "^([^/]+)/([^/]+)/([^/]+)$"
+  if not project or not resource then
+    error "execution must be in the format 'project/resource/execution'"
+  end
+  return {
+    project   = project,
+    resource  = resource,
+    execution = execution,
+  }
+end
+
 commands.info = parser:command "info" {
   description = i18n ["description:info"] % {},
 }
@@ -135,6 +147,12 @@ commands.project.list = parser:command "project:list" {
 }
 commands.project.create = parser:command "project:create" {
   description = i18n ["description:project:create"] % {},
+}
+commands.project.create:option "--name" {
+  description = i18n ["description:name"] % {},
+}
+commands.project.create:option "--description" {
+  description = i18n ["description:description"] % {},
 }
 commands.project.info = parser:command "project:info" {
   description = i18n ["description:project:info"] % {},
@@ -245,6 +263,12 @@ commands.resource.list:argument "project" {
 commands.resource.create = parser:command "resource:create" {
   description = i18n ["description:resource:create"] % {},
 }
+commands.resource.create:option "--name" {
+  description = i18n ["description:name"] % {},
+}
+commands.resource.create:option "--description" {
+  description = i18n ["description:description"] % {},
+}
 commands.resource.create:argument "project" {
   description = i18n ["description:project-id"] % {},
 }
@@ -300,8 +324,11 @@ commands.execution.list:argument "project" {
 commands.execution.create = parser:command "execution:create" {
   description = i18n ["description:execution:create"] % {},
 }
-commands.execution.create:argument "project" {
-  description = i18n ["description:project-id"] % {},
+commands.execution.create:option "--name" {
+  description = i18n ["description:name"] % {},
+}
+commands.execution.create:option "--description" {
+  description = i18n ["description:description"] % {},
 }
 commands.execution.create:argument "resource" {
   description = i18n ["description:resource-url"] % {},
@@ -315,7 +342,7 @@ commands.execution.info = parser:command "execution:info" {
 }
 commands.execution.info:argument "execution" {
   description = i18n ["description:execution-id"] % {},
-  convert     = toresource,
+  convert     = toexecution,
 }
 commands.execution.update = parser:command "execution:update" {
   description = i18n ["description:execution:update"] % {},
@@ -328,14 +355,14 @@ commands.execution.update:option "--description" {
 }
 commands.execution.update:argument "execution" {
   description = i18n ["description:execution-id"] % {},
-  convert     = toresource,
+  convert     = toexecution,
 }
 commands.execution.delete = parser:command "execution:delete" {
   description = i18n ["description:execution:delete"] % {},
 }
 commands.execution.delete:argument "execution" {
   description = i18n ["description:execution-id"] % {},
-  convert     = toresource,
+  convert     = toexecution,
 }
 
 local arguments = parser:parse ()
@@ -434,7 +461,10 @@ local ok, result = xpcall (function ()
     end
     project.permissions [user] = nil
   elseif arguments.command == "project:create" then
-    local project = client:create_project {}
+    local project = client:create_project {
+      name        = arguments.name,
+      description = arguments.description,
+    }
     project:load ()
     return project.data
   elseif arguments.command == "project:delete" then
@@ -484,7 +514,10 @@ local ok, result = xpcall (function ()
     }
   elseif arguments.command == "resource:create" then
     local project  = client:project (arguments.project)
-    local resource = project:create_resource ()
+    local resource = project:create_resource {
+      name        = arguments.name,
+      description = arguments.description,
+    }
     resource:load ()
     return resource.data
   elseif arguments.command == "resource:delete" then
@@ -519,31 +552,37 @@ local ok, result = xpcall (function ()
       description = arguments.description,
     }
   elseif arguments.command == "execution:create" then
-    local project   = client:project (arguments.project)
-    local rproject  = client:project (arguments.resource.project)
-    local resource  = rproject:resource (arguments.resource.resource)
-    local execution = project:execute (resource, arguments.image)
+    local project   = client:project   (arguments.project)
+    local resource  = project:resource (arguments.resource.resource)
+    local execution = resource:execute (arguments.image, {
+      name        = arguments.name,
+      description = arguments.description,
+    })
     execution:load ()
     return execution.data
   elseif arguments.command == "execution:delete" then
-    local project   = client:project   (arguments.execution.project)
-    local execution = project:execution (arguments.execution.resource)
+    local project   = client:project     (arguments.execution.project)
+    local resource  = project:resource   (arguments.execution.resource)
+    local execution = resource:execution (arguments.execution.execution)
     return execution:delete ()
   elseif arguments.command == "execution:info" then
-    local project   = client:project   (arguments.execution.project)
-    local execution = project:execution (arguments.execution.resource)
+    local project   = client:project     (arguments.execution.project)
+    local resource  = project:resource   (arguments.execution.resource)
+    local execution = resource:execution (arguments.execution.execution)
     return execution.data
   elseif arguments.command == "execution:list" then
-    local project = client:project (arguments.project)
+    local project   = client:project     (arguments.execution.project)
+    local resource  = project:resource   (arguments.execution.resource)
     local result  = {}
-    for execution in project:executions () do
+    for execution in resource:executions () do
       execution:load ()
       result [#result+1] = execution.data
     end
     return result
   elseif arguments.command == "execution:update" then
-    local project   = client:project   (arguments.execution.project)
-    local execution = project:execution (arguments.execution.resource)
+    local project   = client:project     (arguments.execution.project)
+    local resource  = project:resource   (arguments.execution.resource)
+    local execution = resource:execution (arguments.execution.execution)
     return execution:update {
       name        = arguments.name,
       description = arguments.description,

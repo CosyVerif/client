@@ -537,7 +537,7 @@ describe ("cosy client", function ()
 
   -- ======================================================================
 
-  it ("can create execution (resource variant)", function ()
+  it ("can create execution", function ()
     local token  = make_token (identities.rahan)
     local Client = require "cosy.client"
     local client = Client.new {
@@ -547,19 +547,6 @@ describe ("cosy client", function ()
     local project  = client :create_project  {}
     local resource = project:create_resource {}
     resource:execute "sylvainlasnier/echo"
-    project:delete ()
-  end)
-
-  it ("can create execution (project variant)", function ()
-    local token  = make_token (identities.rahan)
-    local Client = require "cosy.client"
-    local client = Client.new {
-      url   = server_url,
-      token = token,
-    }
-    local project  = client :create_project  {}
-    local resource = project:create_resource {}
-    project:execute (resource, "sylvainlasnier/echo")
     project:delete ()
   end)
 
@@ -577,7 +564,7 @@ describe ("cosy client", function ()
       description = "description",
     })
     local count = 0
-    for execution in project:executions () do
+    for execution in resource:executions () do
       assert.is_not_nil (execution.id)
       assert.is_not_nil (execution.name)
       assert.is_not_nil (execution.description)
@@ -600,7 +587,7 @@ describe ("cosy client", function ()
       name        = "name",
       description = "description",
     })
-    for execution in project:executions () do
+    for execution in resource:executions () do
       assert.is_not_nil (execution.name)
       assert.is_not_nil (execution.description)
       for _, v in execution:__pairs () do
