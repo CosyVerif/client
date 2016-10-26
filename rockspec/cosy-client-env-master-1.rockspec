@@ -20,7 +20,7 @@ dependencies = {
   "busted",
   "cluacov",
   "cosy-server",
-  -- "hashids",
+  "hashids",
   "jwt",
   "luacheck",
   "luacov",
