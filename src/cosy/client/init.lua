@@ -633,7 +633,7 @@ function Resource.edit (resource)
       Authorization = client.token and "Bearer " .. client.token,
     },
   }
-  assert (status == 202 or status == 302, status)
+  assert (status == 202 or status == 302, { status = status })
   local headers
   for _ = 1, 60 do
     _, status, headers = Http.json {
@@ -649,7 +649,7 @@ function Resource.edit (resource)
     end
     os.execute [[ sleep 1 ]]
   end
-  assert (false, status)
+  assert (false, { status = status })
 end
 
 function Resource.close (resource)
@@ -662,7 +662,7 @@ function Resource.close (resource)
       Authorization = client.token and "Bearer " .. client.token,
     },
   }
-  assert (status == 202, status)
+  assert (status == 202, { status = status })
 end
 
 function Resource.delete (resource)
@@ -677,6 +677,56 @@ function Resource.delete (resource)
   }
   assert (status == 204, { status = status })
   resource.data = false
+end
+
+function Resource.aliases (resource)
+  assert (getmetatable (resource) == Resource)
+  local client  = resource.client
+  local project = resource.project
+  local result, status = Http.json {
+    url      = resource.url .. "/aliases",
+    method   = "GET",
+    headers  = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 200, { status = status })
+  local Json = require "cjson"
+  print (Json.encode (result))
+  local coroutine = Coromake ()
+  return coroutine.wrap (function ()
+    for _, x in ipairs (result.aliases) do
+      coroutine.yield (x.id, Resource.__new (project, x.resource))
+    end
+  end)
+end
+
+function Resource.alias (resource, alias)
+  assert (getmetatable (resource) == Resource)
+  assert (type (alias) == "string")
+  local client = resource.client
+  local _, status = Http.json {
+    url      = resource.url .. "/aliases/" .. alias,
+    method   = "PUT",
+    headers  = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 201 or status == 202, { status = status })
+end
+
+function Resource.unalias (resource, alias)
+  assert (getmetatable (resource) == Resource)
+  assert (type (alias) == "string")
+  local client = resource.client
+  local _, status = Http.json {
+    url      = resource.url .. "/aliases/" .. alias,
+    method   = "DELETE",
+    headers  = {
+      Authorization = client.token and "Bearer " .. client.token,
+    },
+  }
+  assert (status == 204, { status = status })
 end
 
 function Resource.__index (resource, key)

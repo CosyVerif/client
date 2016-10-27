@@ -104,11 +104,23 @@ return {
   ["description:resource-url"] = {
     en = "resource url",
   },
+  ["description:alias"] = {
+    en = "alias",
+  },
   ["description:image-url"] = {
     en = "docker image identifier",
   },
   ["description:execution-id"] = {
     en = "execution identifier",
+  },
+  ["description:alias:create"] = {
+    en = "create an alias",
+  },
+  ["description:alias:delete"] = {
+    en = "delete an alias",
+  },
+  ["description:alias:list"] = {
+    en = "list all aliases for a resource",
   },
   ["description:execution:create"] = {
     en = "create an execution",

@@ -314,6 +314,34 @@ commands.resource.close:argument "resource" {
   convert     = toresource,
 }
 
+commands.resource.close = parser:command "alias:create" {
+  description = i18n ["description:alias:create"] % {},
+}
+commands.resource.close:argument "resource" {
+  description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
+}
+commands.resource.close:argument "alias" {
+  description = i18n ["description:alias"] % {},
+}
+commands.resource.close = parser:command "alias:list" {
+  description = i18n ["description:alias:list"] % {},
+}
+commands.resource.close:argument "resource" {
+  description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
+}
+commands.resource.close = parser:command "alias:delete" {
+  description = i18n ["description:alias:delete"] % {},
+}
+commands.resource.close:argument "resource" {
+  description = i18n ["description:resource-id"] % {},
+  convert     = toresource,
+}
+commands.resource.close:argument "alias" {
+  description = i18n ["description:alias"] % {},
+}
+
 commands.execution = {}
 commands.execution.list = parser:command "execution:list" {
   description = i18n ["description:execution:list"] % {},
@@ -551,6 +579,18 @@ local ok, result = xpcall (function ()
       name        = arguments.name,
       description = arguments.description,
     }
+  elseif arguments.command == "alias:create" then
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
+    return resource:alias (arguments.alias)
+  elseif arguments.command == "alias:delete" then
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
+    return resource:unalias (arguments.alias)
+  elseif arguments.command == "alias:list" then
+    local project  = client:project   (arguments.resource.project)
+    local resource = project:resource (arguments.resource.resource)
+    return resource:aliases ()
   elseif arguments.command == "execution:create" then
     local project   = client:project   (arguments.project)
     local resource  = project:resource (arguments.resource.resource)

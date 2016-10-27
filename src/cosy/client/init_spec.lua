@@ -69,6 +69,8 @@ describe ("cosy client", function ()
         method = "GET",
       }
       assert.are.equal (status, 200)
+      print (info.stats.services)
+      io.stdout:flush ()
       if info.stats.services == 0 then
         break
       end
@@ -537,6 +539,63 @@ describe ("cosy client", function ()
 
   -- ======================================================================
 
+  it ("can create alias", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client:create_project {}
+    local resource = project:create_resource {}
+    resource:alias "my-alias"
+    project:delete ()
+  end)
+
+  it ("can list aliases", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client:create_project {}
+    local resource = project:create_resource {}
+    resource:alias "my-alias"
+    local count = 0
+    for alias, r in resource:aliases () do
+      assert.are.equal (alias, "my-alias")
+      assert.are.equal (resource.id, r.id)
+      count = count + 1
+    end
+    assert.are.equal (count, 1)
+    project:delete ()
+  end)
+
+  it ("can access resource info", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project = client:create_project {}
+    project:create_resource {
+      name        = "name",
+      description = "description",
+    }
+    for resource in project:resources () do
+      assert.is_not_nil (resource.name)
+      assert.is_not_nil (resource.description)
+      for _, v in resource:__pairs () do
+        assert (v)
+      end
+    end
+    project:delete ()
+  end)
+
+  -- ======================================================================
+
   it ("can create execution", function ()
     local token  = make_token (identities.rahan)
     local Client = require "cosy.client"
@@ -544,10 +603,10 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local project  = client :create_project  {}
-    local resource = project:create_resource {}
-    resource:execute "sylvainlasnier/echo"
-    project:delete ()
+    local project   = client :create_project  {}
+    local resource  = project:create_resource {}
+    local execution = resource:execute "sylvainlasnier/echo"
+    execution:delete () -- FIXME: should be replaced by project:delete ()
   end)
 
   it ("can list executions", function ()
@@ -557,21 +616,21 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local project  = client :create_project  {}
-    local resource = project:create_resource {}
-    resource:execute ("sylvainlasnier/echo", {
+    local project   = client :create_project  {}
+    local resource  = project:create_resource {}
+    local execution = resource:execute ("sylvainlasnier/echo", {
       name        = "name",
       description = "description",
     })
     local count = 0
-    for execution in resource:executions () do
-      assert.is_not_nil (execution.id)
-      assert.is_not_nil (execution.name)
-      assert.is_not_nil (execution.description)
+    for e in resource:executions () do
+      assert.is_not_nil (e.id)
+      assert.is_not_nil (e.name)
+      assert.is_not_nil (e.description)
       count = count + 1
     end
     assert.are.equal (count, 1)
-    project:delete ()
+    execution:delete () -- FIXME: should be replaced by project:delete ()
   end)
 
   it ("can access execution info", function ()
@@ -581,20 +640,20 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local project  = client :create_project  {}
-    local resource = project:create_resource {}
-    resource:execute ("sylvainlasnier/echo", {
+    local project   = client :create_project  {}
+    local resource  = project:create_resource {}
+    local execution = resource:execute ("sylvainlasnier/echo", {
       name        = "name",
       description = "description",
     })
-    for execution in resource:executions () do
-      assert.is_not_nil (execution.name)
-      assert.is_not_nil (execution.description)
-      for _, v in execution:__pairs () do
+    for e in resource:executions () do
+      assert.is_not_nil (e.name)
+      assert.is_not_nil (e.description)
+      for _, v in e:__pairs () do
         assert (v)
       end
     end
-    project:delete ()
+    execution:delete () -- FIXME: should be replaced by project:delete ()
   end)
 
   it ("can update execution info", function ()
@@ -608,7 +667,7 @@ describe ("cosy client", function ()
     local resource  = project:create_resource {}
     local execution = resource:execute ("sylvainlasnier/echo")
     execution.name = "name"
-    project:delete ()
+    execution:delete () -- FIXME: should be replaced by project:delete ()
   end)
 
   it ("can delete execution", function ()
@@ -621,8 +680,7 @@ describe ("cosy client", function ()
     local project   = client :create_project  {}
     local resource  = project:create_resource {}
     local execution = resource:execute ("sylvainlasnier/echo")
-    execution:delete ()
-    project:delete ()
+    execution:delete () -- FIXME: should be replaced by project:delete ()
   end)
 
   -- ======================================================================
