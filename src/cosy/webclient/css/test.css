@@ -1,0 +1,14 @@
+p {
+    font-size: 12px;
+    line-height: 14px;
+    color: red;
+}
+
+.bordered {
+    border-style: groove;
+    border-width: medium;
+    border-color: grey;
+}
+
+.log {
+}
