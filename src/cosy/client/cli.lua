@@ -299,10 +299,10 @@ commands.resource.delete:argument "resource" {
   description = i18n ["description:resource-id"] % {},
   convert     = toresource,
 }
-commands.resource.edit = parser:command "resource:edit" {
-  description = i18n ["description:resource:delete"] % {},
+commands.resource.open = parser:command "resource:open" {
+  description = i18n ["description:resource:open"] % {},
 }
-commands.resource.edit:argument "resource" {
+commands.resource.open:argument "resource" {
   description = i18n ["description:resource-id"] % {},
   convert     = toresource,
 }
@@ -314,31 +314,32 @@ commands.resource.close:argument "resource" {
   convert     = toresource,
 }
 
-commands.resource.close = parser:command "alias:create" {
+commands.alias = {}
+commands.alias.create = parser:command "alias:create" {
   description = i18n ["description:alias:create"] % {},
 }
-commands.resource.close:argument "resource" {
+commands.alias.create:argument "resource" {
   description = i18n ["description:resource-id"] % {},
   convert     = toresource,
 }
-commands.resource.close:argument "alias" {
+commands.alias.create:argument "alias" {
   description = i18n ["description:alias"] % {},
 }
-commands.resource.close = parser:command "alias:list" {
+commands.alias.list = parser:command "alias:list" {
   description = i18n ["description:alias:list"] % {},
 }
-commands.resource.close:argument "resource" {
+commands.alias.list:argument "resource" {
   description = i18n ["description:resource-id"] % {},
   convert     = toresource,
 }
-commands.resource.close = parser:command "alias:delete" {
+commands.alias.delete = parser:command "alias:delete" {
   description = i18n ["description:alias:delete"] % {},
 }
-commands.resource.close:argument "resource" {
+commands.alias.delete:argument "resource" {
   description = i18n ["description:resource-id"] % {},
   convert     = toresource,
 }
-commands.resource.close:argument "alias" {
+commands.alias.delete:argument "alias" {
   description = i18n ["description:alias"] % {},
 }
 
@@ -552,10 +553,10 @@ local ok, result = xpcall (function ()
     local project  = client:project   (arguments.resource.project)
     local resource = project:resource (arguments.resource.resource)
     return resource:delete ()
-  elseif arguments.command == "resource:edit" then
+  elseif arguments.command == "resource:open" then
     local project  = client:project   (arguments.resource.project)
     local resource = project:resource (arguments.resource.resource)
-    return resource:edit ()
+    return resource:open ()
   elseif arguments.command == "resource:close" then
     local project  = client:project   (arguments.resource.project)
     local resource = project:resource (arguments.resource.resource)
@@ -653,7 +654,7 @@ local ok, result = xpcall (function ()
     return user:update {}
   end
 end, function (err)
-  print (err, debug.traceback ())
+  print (Json.encode (err), debug.traceback ())
 end)
 
 if ok then

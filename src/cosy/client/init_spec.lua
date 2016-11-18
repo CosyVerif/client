@@ -1,10 +1,17 @@
-local _        = require "copas"
+local oldprint = print
+_G.print = function (...)
+  oldprint (...)
+  io.stdout:flush ()
+end
+
+local Copas    = require "copas"
 local Jwt      = require "jwt"
 local Time     = require "socket".gettime
 local Http     = require "cosy.client.http"
-local Instance = require "cosy.server.instance"
+local Instance = require "cosy.instance"
 
 local Config = {
+  num_workers = 1,
   auth0       = {
     domain        = assert (os.getenv "AUTH0_DOMAIN"),
     client_id     = assert (os.getenv "AUTH0_ID"    ),
@@ -58,7 +65,7 @@ describe ("cosy client", function ()
   local instance, server_url
 
   setup (function ()
-    instance   = Instance.create ()
+    instance   = Instance.create (Config)
     server_url = instance.server
   end)
 
@@ -69,8 +76,6 @@ describe ("cosy client", function ()
         method = "GET",
       }
       assert.are.equal (status, 200)
-      print (info.stats.services)
-      io.stdout:flush ()
       if info.stats.services == 0 then
         break
       end
@@ -684,5 +689,24 @@ describe ("cosy client", function ()
   end)
 
   -- ======================================================================
+
+  it ("can create editor", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client :create_project  {}
+    local resource = project:create_resource {}
+    local result   = false
+    Copas.addthread (function ()
+      local editor = resource:edit ()
+      result = true
+      editor:close ()
+    end)
+    Copas.loop ()
+    assert.is_truthy (result)
+  end)
 
 end)

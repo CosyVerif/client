@@ -95,11 +95,11 @@ return {
   ["description:resource:update"] = {
     en = "update resource information",
   },
-  ["description:resource:edit"] = {
-    en = "start a resource editor",
+  ["description:resource:open"] = {
+    en = "open a resource editor",
   },
   ["description:resource:close"] = {
-    en = "stop a resource editor",
+    en = "close a resource editor",
   },
   ["description:resource-url"] = {
     en = "resource url",

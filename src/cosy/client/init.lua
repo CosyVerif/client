@@ -1,8 +1,8 @@
 local Coromake  = require "coroutine.make"
--- local Copas     = require "copas"
--- local Json      = require "cjson"
--- local Layer     = require "layeredata"
--- local Websocket = require "websocket"
+local Copas     = require "copas"
+local Json      = require "cjson"
+local Layer     = require "layeredata"
+local Websocket = require "websocket"
 local Http      = require "cosy.client.http"
 
 local function assert (condition, err)
@@ -622,7 +622,7 @@ function Resource.load (resource)
   return resource
 end
 
-function Resource.edit (resource)
+function Resource.open (resource)
   assert (getmetatable (resource) == Resource)
   local client    = resource.client
   local _, status = Http.json {
@@ -691,8 +691,6 @@ function Resource.aliases (resource)
     },
   }
   assert (status == 200, { status = status })
-  local Json = require "cjson"
-  print (Json.encode (result))
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
     for _, x in ipairs (result.aliases) do
@@ -904,8 +902,9 @@ function Execution.__pairs (execution)
   Execution.load (execution)
   local coroutine = Coromake ()
   return coroutine.wrap (function ()
-    coroutine.yield ("client" , execution.client)
-    coroutine.yield ("project", execution.project)
+    coroutine.yield ("client"  , execution.client)
+    coroutine.yield ("project" , execution.project)
+    coroutine.yield ("resource", execution.resource)
     if execution.data then
       for key, value in pairs (execution.data) do
         coroutine.yield (key, value)
@@ -916,88 +915,177 @@ end
 
 -----
 
--- local Editor = {}
---
--- function Resource.edit (resource)
---   assert (getmetatable (resource) == Resource)
---   Resource.load (resource)
---   Copas.addthread (function ()
---     local client = Websocket.client.copas {}
---     local project = resource.project
---     assert (client:connect (client.url:gsub ("http://", "ws://") .. "/projects/" .. project.id .. "/resources/" .. resource.id .. "/editor", {
---       method  = "GET",
---       headers = {
---         Authorization = client.token and "Bearer " .. client.token,
---       },
---     }))
---     -- populate layered data
---     -- return transcation function
---     local editor = setmetatable ({
---       client  = client,
---       current = nil,
---       remote  = nil,
---       changes = {},
---     }, Editor)
---     Copas.addthread (function ()
---       while true do
---         local message = client:receive ()
---         if not message then
---           return
---         end
---         message = Json.decode (message)
---         if message.type == "patch" then
---           if message.success then
---             -- if answer to request then merge layer
---             assert (editor.changes [message.id])
---             -- apply on remote
---             editor.changes [message.id] = nil
---           else
---             -- drop change
---             assert (editor.changes [message.id])
---             editor.changes [message.id] = nil
---             editor.current = editor.remote
---           end
---         elseif message.type == "update" then
---          -- if not, apply to remote
---          assert (editor.changes [message.id])
---          -- apply on remote
---          editor.changes [message.id] = nil
---         end
---       end
---     end)
---     return editor
---   end)
---   Copas.loop ()
--- end
---
--- Editor.__index = Editor
---
--- function Editor.__call (editor, f)
---   assert (getmetatable (editor) == Editor)
---   local _ = f
---   -- start record changes
---   -- create new layer
---   local layer = Layer.new {}
---   layer [Layer.refines] = {
---     editor.current,
---   }
---   -- local changes = {}
---   -- local observer = Layer.observe (layer, function (proxy, key, value)
---   --   -- TODO
---   -- end)
---   -- observer:enable ()
---   -- pcall (f, layer)
---   -- observer:disable ()
---   -- end record changes
---   -- send changes
---   editor.client:send (Json.encode {
---     type = "patch",
---   })
--- end
---
--- function Editor.close (editor)
---   assert (getmetatable (editor) == Editor)
---   editor.client:close ()
--- end
+local Editor = {}
+
+Editor.__index = Editor
+
+function Resource.edit (resource)
+  assert (getmetatable (resource) == Resource)
+  Resource.load (resource)
+  local url
+  for _ = 1, 20 do
+    local _, status, headers = Http.json {
+      copas    = true,
+      redirect = false,
+      url      = resource.url .. "/editor",
+      method   = "GET",
+      headers  = {
+        Authorization = resource.client.token and "Bearer " .. resource.client.token,
+      },
+    }
+    if status == 302 then
+      url = headers.location
+      break
+    end
+    Copas.sleep (5)
+  end
+  assert (url, url)
+  local editor = setmetatable ({
+    Layer     = Layer,
+    client    = resource.client,
+    url       = url:gsub ("^http", "ws"),
+    websocket = nil,
+    running   = true,
+    current   = {},
+    remote    = {},
+    changes   = {},
+    resource  = resource,
+  }, Editor)
+  local websocket = Websocket.client.copas {}
+  websocket:connect (editor.url, "cosy")
+  if resource.client.authentified then
+    websocket:send (Json.encode {
+      id    = 1,
+      type  = "authenticate",
+      token = resource.client.token,
+      user  = resource.client.authentified.path,
+    })
+    local answer = websocket:receive ()
+    answer = Json.decode (answer)
+    assert (answer.success, answer.reason)
+  end
+  local answer = websocket:receive ()
+  answer = Json.decode (answer)
+  assert (answer.type == "update")
+  local layer, ref = assert (editor:load (answer.patch, editor.current))
+  editor.current.layer = layer
+  editor.current.ref   = ref
+  editor.remote .layer = layer
+  editor.remote .ref   = ref
+  editor.websocket     = websocket
+  Copas.addthread (function ()
+    while editor.running do
+      print (pcall (function () editor:update () end))
+    end
+  end)
+  return editor
+end
+
+function Editor.update (editor)
+  local message = editor.websocket:receive ()
+  if not message then
+    return
+  end
+  message = assert (Json.decode (message))
+  if message.type == "answer" then
+    if message.success then
+      local change = assert (editor.changes [message.id])
+      local layer  = assert (editor:load (change.source, editor.remote))
+      editor.Layer.merge (layer, editor.remote.layer)
+    else
+      assert (editor.changes [message.id])
+      editor.current = {
+        layer = editor.remote.layer,
+        ref   = editor.remote.ref,
+      }
+      local changes = {}
+      for i = message.id+1, #editor.changes do
+        changes [#changes+1] = editor.changes [i]
+      end
+      for i = 1, message.id+1 do
+        changes [#changes+1] = editor.changes [i]
+      end
+      for _, change in ipairs (changes) do
+        local layer, ref = editor:load (change.source, editor.current)
+        if layer then
+          editor.current = {
+            layer = layer,
+            ref   = ref,
+          }
+        else
+          editor.changes = {}
+        end
+      end
+    end
+    editor.changes [message.id] = nil
+  elseif message.type == "update" then
+    local layer = assert (editor:load (message.patch, editor.remote))
+    editor.Layer.merge (layer, editor.remote.layer)
+  end
+  if not next (editor.changes) then
+    editor.current = {
+      layer = editor.remote.layer,
+      ref   = editor.remote.ref,
+    }
+  end
+end
+
+function Editor.__call (editor, f)
+  assert (getmetatable (editor) == Editor)
+  local layer, ref = editor:load (f, editor.current)
+  local patch = type (f) == "string"
+            and f
+             or editor.Layer.dump (editor.current.layer)
+  editor.changes [#editor.changes+1] = {
+    source = f,
+    patch  = patch,
+    layer  = layer,
+    ref    = ref,
+  }
+  editor.websocket:send (Json.encode {
+    id    = #editor.changes,
+    type  = "patch",
+    patch = patch,
+  })
+end
+
+function Editor.load (editor, patch, where)
+  local loaded, ok, err
+  if type (patch) == "string" then
+    if _G.loadstring then
+      loaded, err = _G.loadstring (patch)
+    else
+      loaded, err = _G.load (patch, nil, "t")
+    end
+    if not loaded then
+      return nil, err
+    end
+    ok, loaded = pcall (loaded)
+    if not ok then
+      return nil, loaded
+    end
+  elseif type (patch) == "function" then
+    loaded = patch
+  end
+  if not loaded then
+    return nil, "no patch"
+  end
+  local current, ref = editor.Layer.new {
+    [editor.Layer.key.refines] = {
+      where.layer,
+    }
+  }
+  ok, err = pcall (loaded, editor.Layer, current, ref)
+  if not ok then
+    return nil, err
+  end
+  return current, ref
+end
+
+function Editor.close (editor)
+  assert (getmetatable (editor) == Editor)
+  editor.running = false
+  editor.websocket:close ()
+end
 
 return Client

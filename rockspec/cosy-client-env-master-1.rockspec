@@ -19,12 +19,18 @@ dependencies = {
   "lua >= 5.1",
   "busted",
   "cluacov",
-  "cosy-server",
+  "copas",
+  "cosy-instance",
+  "etlua",
   "hashids",
   "jwt",
   "luacheck",
   "luacov",
   "luacov-coveralls",
+  "luasocket",
+  "luasec",
+  "lua-cjson",
+  "lua-websockets",
 }
 
 build = {

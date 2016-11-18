@@ -1,24 +1,21 @@
-box: cosyverif/lua-environments
+box:
+  id: cosyverif/docker-images:luajit
+  cmd: /bin/bash
 build:
   steps:
     - script:
-        name: "remove incompatible versions" # FIXME
-        code: |
-          rm -rf /lua/lua51-none
-          rm -rf /lua/lua51-all
-          rm -rf /lua/lua52-*
-          rm -rf /lua/lua53-*
-          rm -rf /lua/luajit*
-    - script:
         name: "install"
         code: |
-          for dir in /lua/*; do
-            if [ -d "${dir}" ]; then
-              "${dir}/bin/luarocks" install https://raw.githubusercontent.com/un-def/hashids.lua/master/hashids-1.0.2-1.rockspec
-              "${dir}/bin/luarocks" make rockspec/cosy-client-env-master-1.rockspec
-              "${dir}/bin/luarocks" make rockspec/cosy-client-master-1.rockspec
-            fi
-          done
+          apk add --no-cache --virtual .build-deps \
+              build-base \
+              make \
+              perl \
+              openssl-dev
+          luarocks install rockspec/hashids-develop-0.rockspec
+          luarocks install rockspec/lua-websockets-develop-0.rockspec
+          luarocks make    rockspec/cosy-client-env-master-1.rockspec
+          luarocks make    rockspec/cosy-client-master-1.rockspec
+          apk del .build-deps
     - script:
         name: "check"
         code: |
@@ -26,33 +23,13 @@ build:
     - script:
         name: "test"
         code: |
-          for dir in /lua/*; do
-            if [ -d "${dir}" ]; then
-              echo "${dir}"
-              "${dir}/bin/busted" src/
-            fi
-          done
-    - script:
-        name: "upload to luarocks"
-        code: |
-          if [ "${WERCKER_GIT_BRANCH}" = "master" ]; then
-            tag=$(git describe --tags --abbrev=0 || echo "0.0")
-            count=$(git rev-list --count HEAD ^"${tag}" || git rev-list --count HEAD)
-          else
-            tag="${WERCKER_GIT_BRANCH}"
-            count=$(git rev-list --count HEAD ^"${tag}" || git rev-list --count HEAD)
-          fi
-          cd rockspec || exit 1
-          sed -e "s/master-1/${tag}-${count}/" \
-              -e "s/master/${tag}/" \
-            "cosy-client-master-1.rockspec" \
-            > "cosy-client-${tag}-${count}.rockspec"
-          luarocks upload \
-            --force \
-            --api-key="${LUAROCKS_TOKEN}" \
-            "cosy-client-${tag}-${count}.rockspec"
-          cd ..
+          busted --output=TAP src/
   after-steps:
+    - slack-notifier:
+        url: $SLACK_URL
+        channel: notifications
+        username: CosyVerif
+        branch: ${WERCKER_GIT_BRANCH}
     - script:
         name: "export to coveralls"
         code: |
