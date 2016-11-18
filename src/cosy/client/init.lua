@@ -5,12 +5,6 @@ local Layer     = require "layeredata"
 local Websocket = require "websocket"
 local Http      = require "cosy.client.http"
 
-local function assert (condition, err)
-  if not condition then
-    error (err)
-  end
-end
-
 local Client      = {}
 local Execution   = {}
 local Resource    = {}
@@ -967,7 +961,7 @@ function Resource.edit (resource)
   local answer = websocket:receive ()
   answer = Json.decode (answer)
   assert (answer.type == "update")
-  local layer, ref = assert (editor:load (answer.patch, editor.current))
+  local layer, ref = assert (editor:load (answer.patch))
   editor.current.layer = layer
   editor.current.ref   = ref
   editor.remote .layer = layer
@@ -975,7 +969,7 @@ function Resource.edit (resource)
   editor.websocket     = websocket
   Copas.addthread (function ()
     while editor.running do
-      print (pcall (function () editor:update () end))
+      pcall (Editor.update, editor)
     end
   end)
   return editor
@@ -986,7 +980,7 @@ function Editor.update (editor)
   if not message then
     return
   end
-  message = assert (Json.decode (message))
+  message = Json.decode (message)
   if message.type == "answer" then
     if message.success then
       local change = assert (editor.changes [message.id])
@@ -1035,7 +1029,7 @@ function Editor.__call (editor, f)
   local layer, ref = editor:load (f, editor.current)
   local patch = type (f) == "string"
             and f
-             or editor.Layer.dump (editor.current.layer)
+             or editor.Layer.dump (layer, { [editor.current.layer] = true })
   editor.changes [#editor.changes+1] = {
     source = f,
     patch  = patch,
@@ -1070,11 +1064,18 @@ function Editor.load (editor, patch, where)
   if not loaded then
     return nil, "no patch"
   end
-  local current, ref = editor.Layer.new {
-    [editor.Layer.key.refines] = {
+  local current, ref
+  if where then
+    current = editor.Layer.new {
+      temporary = true
+    }
+    current [editor.Layer.key.refines] = {
       where.layer,
     }
-  }
+    ref = where.ref
+  else
+    current, ref = editor.Layer.new {}
+  end
   ok, err = pcall (loaded, editor.Layer, current, ref)
   if not ok then
     return nil, err

@@ -709,4 +709,31 @@ describe ("cosy client", function ()
     assert.is_truthy (result)
   end)
 
+  it ("can modify the model", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client :create_project  {}
+    local resource = project:create_resource {}
+    local current  = false
+    local remote   = false
+    Copas.addthread (function ()
+      local editor = resource:edit ()
+      editor (function (Layer, layer, ref)
+        local _, _ = Layer, ref
+        layer.mydata = 1
+      end)
+      Copas.sleep (1)
+      current = editor.current.layer.mydata
+      remote  = editor.remote .layer.mydata
+      editor:close ()
+    end)
+    Copas.loop ()
+    assert.are.equal (current, 1)
+    assert.are.equal (remote , 1)
+  end)
+
 end)
