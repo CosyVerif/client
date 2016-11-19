@@ -3,12 +3,13 @@ _G.print = function (...)
   oldprint (...)
   io.stdout:flush ()
 end
-
-local Copas    = require "copas"
-local Jwt      = require "jwt"
-local Time     = require "socket".gettime
-local Http     = require "cosy.client.http"
-local Instance = require "cosy.instance"
+local Coromake  = require "coroutine.make"
+_G.coroutine    = Coromake ()
+local Copas     = require "copas"
+local Jwt       = require "jwt"
+local Time      = require "socket".gettime
+local Http      = require "cosy.client.http"
+local Instance  = require "cosy.instance"
 
 local Config = {
   num_workers = 1,
@@ -722,8 +723,7 @@ describe ("cosy client", function ()
     local remote   = false
     Copas.addthread (function ()
       local editor = resource:edit ()
-      editor (function (Layer, layer, ref)
-        local _, _ = Layer, ref
+      editor (function (_, layer, _)
         layer.mydata = 1
       end)
       Copas.sleep (1)
@@ -734,6 +734,75 @@ describe ("cosy client", function ()
     Copas.loop ()
     assert.are.equal (current, 1)
     assert.are.equal (remote , 1)
+  end)
+
+  it ("can modify concurrently the model", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project    = client :create_project  {}
+    local resource   = project:create_resource {}
+    local results    = {}
+    local function wakeup (co)
+      Copas.addthread (function ()
+        Copas.wakeup (co)
+      end)
+    end
+    Copas.addthread (function ()
+      local editor = resource:edit ()
+      local co     = coroutine.running ()
+      editor.Layer.observe (editor.remote.layer, function (coroutine, proxy, key, value)
+        if key == "mydata" then
+          value = coroutine.yield ()
+          wakeup (co)
+        end
+        local _, _ = proxy, value
+      end)
+      editor (function (_, layer, _)
+        layer.mydata = 1
+      end)
+      repeat
+        Copas.sleep (-math.huge)
+      until editor.remote.layer.mydata == 2
+      results [1] = {
+        current = editor.current,
+        remote  = editor.remote,
+      }
+      editor:close ()
+    end)
+    Copas.addthread (function ()
+      local editor = resource:edit ()
+      local co     = coroutine.running ()
+      editor.Layer.observe (editor.remote.layer, function (coroutine, proxy, key, value)
+        if key == "mydata" then
+          value = coroutine.yield ()
+          wakeup (co)
+        end
+        local _, _ = proxy, value
+      end)
+      repeat
+        Copas.sleep (-math.huge)
+      until editor.remote.layer.mydata == 1
+      editor (function (_, layer, _)
+        layer.mydata = 2
+      end)
+      repeat
+        Copas.sleep (-math.huge)
+      until editor.remote.layer.mydata == 2
+      results [2] = {
+        current = editor.current,
+        remote  = editor.remote,
+      }
+      editor:close ()
+    end)
+    Copas.loop ()
+    assert.are.equal (results [1].current.layer.mydata, results [1].remote.layer.mydata)
+    assert.are.equal (results [2].current.layer.mydata, results [2].remote.layer.mydata)
+    assert.are.equal (results [1].current.layer.mydata, results [2].current.layer.mydata)
+    assert.are.equal (results [1].current.layer.mydata, 2)
   end)
 
 end)
