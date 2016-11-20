@@ -743,30 +743,17 @@ describe ("cosy client", function ()
       url   = server_url,
       token = token,
     }
-    local project    = client :create_project  {}
-    local resource   = project:create_resource {}
-    local results    = {}
-    local function wakeup (co)
-      Copas.addthread (function ()
-        Copas.wakeup (co)
-      end)
-    end
+    local project  = client :create_project  {}
+    local resource = project:create_resource {}
+    local results  = {}
     Copas.addthread (function ()
       local editor = resource:edit ()
-      local co     = coroutine.running ()
-      editor.Layer.observe (editor.remote.layer, function (coroutine, proxy, key, value)
-        if key == "mydata" then
-          value = coroutine.yield ()
-          wakeup (co)
-        end
-        local _, _ = proxy, value
-      end)
-      editor (function (_, layer, _)
+      editor (function (_, layer)
         layer.mydata = 1
       end)
-      repeat
-        Copas.sleep (-math.huge)
-      until editor.remote.layer.mydata == 2
+      while editor.remote.layer.mydata ~= 2 do
+        editor:wait (function (_, key) return key == "mydata" end)
+      end
       results [1] = {
         current = editor.current,
         remote  = editor.remote,
@@ -775,23 +762,15 @@ describe ("cosy client", function ()
     end)
     Copas.addthread (function ()
       local editor = resource:edit ()
-      local co     = coroutine.running ()
-      editor.Layer.observe (editor.remote.layer, function (coroutine, proxy, key, value)
-        if key == "mydata" then
-          value = coroutine.yield ()
-          wakeup (co)
-        end
-        local _, _ = proxy, value
-      end)
-      repeat
-        Copas.sleep (-math.huge)
-      until editor.remote.layer.mydata == 1
-      editor (function (_, layer, _)
+      while editor.remote.layer.mydata ~= 1 do
+        editor:wait (function (_, key) return key == "mydata" end)
+      end
+      editor (function (_, layer)
         layer.mydata = 2
       end)
-      repeat
-        Copas.sleep (-math.huge)
-      until editor.remote.layer.mydata == 2
+      while editor.remote.layer.mydata ~= 2 do
+        editor:wait (function (_, key) return key == "mydata" end)
+      end
       results [2] = {
         current = editor.current,
         remote  = editor.remote,

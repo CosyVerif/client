@@ -941,6 +941,7 @@ function Resource.edit (resource)
     url       = url:gsub ("^http", "ws"),
     websocket = nil,
     running   = true,
+    base      = {},
     current   = {},
     remote    = {},
     changes   = {},
@@ -962,21 +963,28 @@ function Resource.edit (resource)
   local answer = websocket:receive ()
   answer = Json.decode (answer)
   assert (answer.type == "update")
-  local layer, ref = assert (editor:load (answer.patch))
-  editor.current.layer = layer
+  local layer, ref = editor:load (answer.patch)
+  local current = Layer.new { temporary = true }
+  local remote  = Layer.new { temporary = true }
+  current [Layer.key.refines] = { layer }
+  remote  [Layer.key.refines] = { layer }
+  editor.base   .layer = layer
+  editor.base   .ref   = ref
+  editor.current.layer = current
   editor.current.ref   = ref
-  editor.remote .layer = layer
+  editor.remote .layer = remote
   editor.remote .ref   = ref
   editor.websocket     = websocket
   Copas.addthread (function ()
     while editor.running do
-      pcall (Editor.update, editor)
+      pcall (Editor.receive, editor)
     end
   end)
   return editor
 end
 
-function Editor.update (editor)
+function Editor.receive (editor)
+  assert (getmetatable (editor) == Editor)
   local message = editor.websocket:receive ()
   if not message then
     return
@@ -986,56 +994,47 @@ function Editor.update (editor)
     if message.success then
       local change = assert (editor.changes [message.id])
       local layer  = assert (editor:load (change.source, editor.remote))
-      editor.Layer.merge (layer, editor.remote.layer)
-    else
-      assert (editor.changes [message.id])
-      editor.current = {
-        layer = editor.remote.layer,
-        ref   = editor.remote.ref,
-      }
-      local changes = {}
-      for i = message.id+1, #editor.changes do
-        changes [#changes+1] = editor.changes [i]
-      end
-      for i = 1, message.id+1 do
-        changes [#changes+1] = editor.changes [i]
-      end
-      for _, change in ipairs (changes) do
-        local layer, ref = editor:load (change.source, editor.current)
-        if layer then
-          editor.current = {
-            layer = layer,
-            ref   = ref,
-          }
-        else
-          editor.changes = {}
-        end
-      end
+      Layer.merge (layer, editor.base.layer)
     end
     editor.changes [message.id] = nil
+    local refines = editor.current.layer [Layer.key.refines]
+    for i = 2, Layer.len (refines) do
+      refines [i] = refines [i+1]
+    end
   elseif message.type == "update" then
     local layer = assert (editor:load (message.patch, editor.remote))
-    editor.Layer.merge (layer, editor.remote.layer)
-  end
-  if not next (editor.changes) then
-    editor.current = {
-      layer = editor.remote.layer,
-      ref   = editor.remote.ref,
-    }
+    Layer.merge (layer, editor.base.layer)
+    local refines = editor.remote.layer [Layer.key.refines]
+    refines [2]   = nil
   end
 end
 
-function Editor.__call (editor, f)
+function Editor.wait (editor, condition)
   assert (getmetatable (editor) == Editor)
-  local layer, ref = editor:load (f, editor.current)
-  local patch = type (f) == "string"
-            and f
-             or editor.Layer.dump (layer, { [editor.current.layer] = true })
+  assert (condition == nil or type (condition) == "function")
+  local co = coroutine.running ()
+  local t  = {}
+  t.observer = Layer.observe (editor.remote.layer, function (coroutine, proxy, key, value)
+    if condition (proxy, key, value) then
+      t.observer:disable ()
+      coroutine.yield ()
+      Copas.addthread (function ()
+        Copas.wakeup (co)
+      end)
+    end
+  end)
+  Copas.sleep (-math.huge)
+end
+
+function Editor.update (editor, f)
+  assert (getmetatable (editor) == Editor)
+  local created = editor:load (f, editor.current)
+  local patch   = type (f) == "string"
+              and f
+               or Layer.dump (created)
   editor.changes [#editor.changes+1] = {
     source = f,
     patch  = patch,
-    layer  = layer,
-    ref    = ref,
   }
   editor.websocket:send (Json.encode {
     id    = #editor.changes,
@@ -1044,7 +1043,18 @@ function Editor.__call (editor, f)
   })
 end
 
-function Editor.load (editor, patch, where)
+function Editor.__call (editor, f)
+  assert (getmetatable (editor) == Editor)
+  return editor:update (f)
+end
+
+function Editor.load (editor, patch, within)
+  assert (getmetatable (editor) == Editor)
+  assert (within == nil or type (within) == "table")
+  if within then
+    assert (getmetatable (within.layer) == Layer.Proxy)
+    assert (getmetatable (within.ref  ) == Layer.Reference)
+  end
   local loaded, ok, err
   if type (patch) == "string" then
     if _G.loadstring then
@@ -1065,23 +1075,24 @@ function Editor.load (editor, patch, where)
   if not loaded then
     return nil, "no patch"
   end
-  local current, ref
-  if where then
-    current = editor.Layer.new {
+  local layer, ref
+  if within then
+    layer, ref = Layer.new {
       temporary = true
-    }
-    current [editor.Layer.key.refines] = {
-      where.layer,
-    }
-    ref = where.ref
+    }, within.ref
+    local refines = within.layer [Layer.key.refines]
+    refines [Layer.len (refines)+1] = layer
+    local old = Layer.write_to (within.layer, layer)
+    ok, err = pcall (loaded, editor.Layer, within.layer, within.ref)
+    Layer.write_to (within.layer, old)
   else
-    current, ref = editor.Layer.new {}
+    layer, ref = Layer.new {}
+    ok, err = pcall (loaded, editor.Layer, layer, ref)
   end
-  ok, err = pcall (loaded, editor.Layer, current, ref)
   if not ok then
     return nil, err
   end
-  return current, ref
+  return layer, ref
 end
 
 function Editor.close (editor)
