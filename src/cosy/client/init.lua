@@ -135,10 +135,13 @@ function User.__new (client, path)
   assert (getmetatable (client) == Client)
   local result = client.unique.users [path]
   if not result then
+    local id = path:match "^/users/([^/]+)$"
     result = setmetatable ({
       client = client,
       path   = path,
       data   = false,
+      id     = id,
+      cli_id = id,
       url    = client.url .. path,
     }, User)
     client.unique.users [path] = result
@@ -225,10 +228,13 @@ function Project.__new (client, path)
   assert (getmetatable (client) == Client)
   local result = client.unique.projects [path]
   if not result then
+    local id = path:match "^/projects/([^/]+)$"
     result = {
       client = client,
       path   = path,
       data   = false,
+      id     = id,
+      cli_id = id,
       url    = client.url .. path,
     }
     result.permissions = setmetatable ({
@@ -545,11 +551,14 @@ function Resource.__new (project, path)
   local client = project.client
   local result = client.unique.resources [path]
   if not result then
+    local pid, rid = path:match "^/projects/([^/]+)/resources/([^/]+)$"
     result = {
       client  = client,
       project = project,
       path    = path,
       data    = false,
+      id      = rid,
+      cli_id  = pid .. "/" .. rid,
       url     = client.url .. path,
     }
     result = setmetatable (result, Resource)
@@ -771,12 +780,15 @@ function Execution.__new (resource, path)
   local client = resource.client
   local result = client.unique.executions [path]
   if not result then
+    local pid, rid, eid = path:match "^/projects/([^/]+)/resources/([^/]+)/executions/([^/]+)$"
     result = {
       client   = client,
       project  = resource.project,
       resource = resource,
       path     = path,
       data     = false,
+      id       = eid,
+      cli_id   = pid .. "/" .. rid .. "/" .. eid,
       url      = client.url .. path,
     }
     result = setmetatable (result, Execution)

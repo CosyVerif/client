@@ -81,6 +81,22 @@ local commands = {}
 parser:command_target "command"
 parser:require_command (false)
 
+local function touser (x)
+  local user = x:match "^([^/]+)$"
+  if not user then
+    error "user must be in the format 'user'"
+  end
+  return user
+end
+
+local function toproject (x)
+  local project = x:match "^([^/]+)$"
+  if not project then
+    error "project must be in the format 'project'"
+  end
+  return project
+end
+
 local function toresource (x)
   local project, resource = x:match "^([^/]+)/([^/]+)$"
   if not project or not resource then
@@ -127,18 +143,21 @@ commands.user.info = parser:command "user:info" {
 }
 commands.user.info:argument "user" {
   description = i18n ["description:user-id"] % {},
+  convert     = touser,
 }
 commands.user.update = parser:command "user:update" {
   description = i18n ["description:user:update"] % {},
 }
 commands.user.update:argument "user" {
   description = i18n ["description:user-id"] % {},
+  convert     = touser,
 }
 commands.user.delete = parser:command "user:delete" {
   description = i18n ["description:user:delete"] % {},
 }
 commands.user.delete:argument "user" {
   description = i18n ["description:user-id"] % {},
+  convert     = touser,
 }
 
 commands.project = {}
@@ -159,6 +178,7 @@ commands.project.info = parser:command "project:info" {
 }
 commands.project.info:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.update = parser:command "project:update" {
   description = i18n ["description:project:update"] % {},
@@ -171,24 +191,28 @@ commands.project.update:option "--description" {
 }
 commands.project.update:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.delete = parser:command "project:delete" {
   description = i18n ["description:project:delete"] % {},
 }
 commands.project.delete:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.tags = parser:command "project:tags" {
   description = i18n ["description:project:tags"] % {},
 }
 commands.project.tags:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.tag = parser:command "project:tag" {
   description = i18n ["description:project:tag"] % {},
 }
 commands.project.tag:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.tag:argument "tag" {
   description = i18n ["description:tag"] % {},
@@ -198,6 +222,7 @@ commands.project.untag = parser:command "project:untag" {
 }
 commands.project.untag:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.untag:argument "tag" {
   description = i18n ["description:tag"] % {},
@@ -207,18 +232,21 @@ commands.project.stars = parser:command "project:stars" {
 }
 commands.project.stars:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.star = parser:command "project:star" {
   description = i18n ["description:project:star"] % {},
 }
 commands.project.star:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.project.unstar = parser:command "project:unstar" {
   description = i18n ["description:project:unstar"] % {},
 }
 commands.project.unstar:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 
 commands.permissions = {}
@@ -227,6 +255,7 @@ commands.permissions.set = parser:command "permissions:set" {
 }
 commands.permissions.set:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.permissions.set:argument "identifier" {
   description = i18n ["description:identifier"] % {},
@@ -248,6 +277,7 @@ commands.permissions.unset = parser:command "permissions:unset" {
 }
 commands.permissions.unset:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.permissions.unset:argument "identifier" {
   description = i18n ["description:identifier"] % {},
@@ -259,6 +289,7 @@ commands.resource.list = parser:command "resource:list" {
 }
 commands.resource.list:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.resource.create = parser:command "resource:create" {
   description = i18n ["description:resource:create"] % {},
@@ -271,6 +302,7 @@ commands.resource.create:option "--description" {
 }
 commands.resource.create:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.resource.info = parser:command "resource:info" {
   description = i18n ["description:resource:info"] % {},
@@ -349,6 +381,7 @@ commands.execution.list = parser:command "execution:list" {
 }
 commands.execution.list:argument "project" {
   description = i18n ["description:project-id"] % {},
+  convert     = toproject,
 }
 commands.execution.create = parser:command "execution:create" {
   description = i18n ["description:execution:create"] % {},
@@ -495,13 +528,13 @@ local ok, result = xpcall (function ()
       description = arguments.description,
     }
     project:load ()
-    return project.data
+    return project
   elseif arguments.command == "project:delete" then
     local project = client:project (arguments.project)
     return project:delete ()
   elseif arguments.command == "project:info" then
     local project = client:project (arguments.project)
-    return project.data
+    return project
   elseif arguments.command == "project:list" then
     local result = {}
     for project in client:projects () do
@@ -548,7 +581,7 @@ local ok, result = xpcall (function ()
       description = arguments.description,
     }
     resource:load ()
-    return resource.data
+    return resource
   elseif arguments.command == "resource:delete" then
     local project  = client:project   (arguments.resource.project)
     local resource = project:resource (arguments.resource.resource)
@@ -564,7 +597,7 @@ local ok, result = xpcall (function ()
   elseif arguments.command == "resource:info" then
     local project  = client:project   (arguments.resource.project)
     local resource = project:resource (arguments.resource.resource)
-    return resource.data
+    return resource
   elseif arguments.command == "resource:list" then
     local project  = client:project (arguments.project)
     local result = {}
@@ -600,7 +633,7 @@ local ok, result = xpcall (function ()
       description = arguments.description,
     })
     execution:load ()
-    return execution.data
+    return execution
   elseif arguments.command == "execution:delete" then
     local project   = client:project     (arguments.execution.project)
     local resource  = project:resource   (arguments.execution.resource)
@@ -610,7 +643,7 @@ local ok, result = xpcall (function ()
     local project   = client:project     (arguments.execution.project)
     local resource  = project:resource   (arguments.execution.resource)
     local execution = resource:execution (arguments.execution.execution)
-    return execution.data
+    return execution
   elseif arguments.command == "execution:list" then
     local project   = client:project     (arguments.execution.project)
     local resource  = project:resource   (arguments.execution.resource)
@@ -641,7 +674,7 @@ local ok, result = xpcall (function ()
     return user:delete ()
   elseif arguments.command == "user:info" then
     local user = client:user (arguments.user)
-    return user.data
+    return user
   elseif arguments.command == "user:list" then
     local result = {}
     for user in client:users () do
@@ -660,7 +693,7 @@ end)
 if ok then
   if profile.output == "shell" then
     if type (result) == "table" then
-      result = result.id
+      result = result.cli_id or result.id
     end
     if result ~= nil then
       result = tostring (result)
