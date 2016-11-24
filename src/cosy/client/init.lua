@@ -948,7 +948,7 @@ function Resource.edit (resource)
   end
   assert (url, url)
   local editor = setmetatable ({
-    Layer     = Layer,
+    Layer     = setmetatable ({}, { __index = Layer }),
     client    = resource.client,
     url       = url:gsub ("^http", "ws"),
     websocket = nil,
@@ -956,9 +956,38 @@ function Resource.edit (resource)
     base      = {},
     current   = {},
     remote    = {},
-    changes   = {},
+    requests  = {},
+    answers   = {},
     resource  = resource,
   }, Editor)
+  editor.Layer.require = function (module)
+    local loaded = Layer.loaded [module]
+    if loaded then
+      local layer = Layer.hidden [loaded].layer
+      local info  = Layer.hidden [layer]
+      return info.proxy, info.ref
+    end
+    local co = coroutine.running ()
+    local t  = {}
+    local id = #editor.requests+1
+    editor.requests [id] = {
+      module   = module,
+      callback = function (answer)
+        t.module = answer.module
+        Copas.wakeup (co)
+      end,
+    }
+    editor.websocket:send (Json.encode {
+      id     = id,
+      type   = "require",
+      module = module,
+    })
+    Copas.sleep (-math.huge)
+    editor.requests [id] = nil
+    local layer, ref = editor:load (t.module, { name = module })
+    Layer.loaded [module] = layer
+    return layer, ref
+  end
   local websocket = Websocket.client.copas {}
   websocket:connect (editor.url, "cosy")
   if resource.client.authentified then
@@ -987,9 +1016,14 @@ function Resource.edit (resource)
   editor.remote .layer = remote
   editor.remote .ref   = ref
   editor.websocket     = websocket
-  Copas.addthread (function ()
+  editor.receiver      = Copas.addthread (function ()
     while editor.running do
       pcall (Editor.receive, editor)
+    end
+  end)
+  editor.patcher       = Copas.addthread (function ()
+    while editor.running do
+      pcall (Editor.patch, editor)
     end
   end)
   return editor
@@ -1003,18 +1037,10 @@ function Editor.receive (editor)
   end
   message = Json.decode (message)
   if message.type == "answer" then
-    if message.success then
-      local change = assert (editor.changes [message.id])
-      local layer  = assert (editor:load (change.source, editor.remote))
-      Layer.merge (layer, editor.base.layer)
-    end
-    editor.changes [message.id] = nil
-    local refines = editor.current.layer [Layer.key.refines]
-    for i = 2, Layer.len (refines) do
-      refines [i] = refines [i+1]
-    end
+    local request = assert (editor.requests [message.id])
+    request.callback (message)
   elseif message.type == "update" then
-    local layer = assert (editor:load (message.patch, editor.remote))
+    local layer = assert (editor:load (message.patch, { within = editor.remote }))
     Layer.merge (layer, editor.base.layer)
     local refines = editor.remote.layer [Layer.key.refines]
     refines [2]   = nil
@@ -1027,7 +1053,7 @@ function Editor.wait (editor, condition)
   local co = coroutine.running ()
   local t  = {}
   t.observer = Layer.observe (editor.remote.layer, function (coroutine, proxy, key, value)
-    if condition (proxy, key, value) then
+    if condition and condition (proxy, key, value) then
       t.observer:disable ()
       coroutine.yield ()
       Copas.addthread (function ()
@@ -1040,19 +1066,45 @@ end
 
 function Editor.update (editor, f)
   assert (getmetatable (editor) == Editor)
-  local created = editor:load (f, editor.current)
+  local created, err = editor:load (f, { within = editor.current })
+  if not created then
+    error (err)
+  end
   local patch   = type (f) == "string"
               and f
                or Layer.dump (created)
-  editor.changes [#editor.changes+1] = {
-    source = f,
-    patch  = patch,
+  editor.requests [#editor.requests+1] = {
+    source   = f,
+    patch    = patch,
+    callback = function (answer)
+      editor.answers [#editor.answers+1] = answer
+      Copas.wakeup (editor.patcher)
+    end,
   }
   editor.websocket:send (Json.encode {
-    id    = #editor.changes,
+    id    = #editor.requests,
     type  = "patch",
     patch = patch,
   })
+end
+
+function Editor.patch (editor)
+  local answer = editor.answers [1]
+  if answer then
+    if answer.success then
+      local request = assert (editor.requests [answer.id])
+      local layer   = assert (editor:load (request.source, { within = editor.remote }))
+      Layer.merge (layer, editor.base.layer)
+    end
+    local refines = editor.current.layer [Layer.key.refines]
+    for i = 2, Layer.len (refines) do
+      refines [i] = refines [i+1]
+    end
+    editor.requests [answer.id] = nil
+    table.remove (editor.answers, 1)
+  else
+    Copas.sleep (-math.huge)
+  end
 end
 
 function Editor.__call (editor, f)
@@ -1060,12 +1112,13 @@ function Editor.__call (editor, f)
   return editor:update (f)
 end
 
-function Editor.load (editor, patch, within)
+function Editor.load (editor, patch, options)
   assert (getmetatable (editor) == Editor)
-  assert (within == nil or type (within) == "table")
-  if within then
-    assert (getmetatable (within.layer) == Layer.Proxy)
-    assert (getmetatable (within.ref  ) == Layer.Reference)
+  assert (options == nil or type (options) == "table")
+  options = options or {}
+  if options.within then
+    assert (getmetatable (options.within.layer) == Layer.Proxy)
+    assert (getmetatable (options.within.ref  ) == Layer.Reference)
   end
   local loaded, ok, err
   if type (patch) == "string" then
@@ -1088,17 +1141,21 @@ function Editor.load (editor, patch, within)
     return nil, "no patch"
   end
   local layer, ref
-  if within then
+  if options.within then
     layer, ref = Layer.new {
-      temporary = true
-    }, within.ref
-    local refines = within.layer [Layer.key.refines]
+      name      = options.name,
+      temporary = true,
+    }, options.within.ref
+    local refines = options.within.layer [Layer.key.refines]
     refines [Layer.len (refines)+1] = layer
-    local old = Layer.write_to (within.layer, layer)
-    ok, err = pcall (loaded, editor.Layer, within.layer, within.ref)
-    Layer.write_to (within.layer, old)
+    local old = Layer.write_to (options.within.layer, layer)
+    ok, err = pcall (loaded, editor.Layer, options.within.layer, options.within.ref)
+    Layer.write_to (options.within.layer, old)
   else
-    layer, ref = Layer.new {}
+    layer, ref = Layer.new {
+      name      = options.name,
+      temporary = false,
+    }
     ok, err = pcall (loaded, editor.Layer, layer, ref)
   end
   if not ok then
@@ -1111,6 +1168,8 @@ function Editor.close (editor)
   assert (getmetatable (editor) == Editor)
   editor.running = false
   editor.websocket:close ()
+  Copas.wakeup (editor.receiver)
+  Copas.wakeup (editor.patcher)
 end
 
 return Client

@@ -13,6 +13,7 @@ local Instance  = require "cosy.instance"
 
 local Config = {
   num_workers = 1,
+  mode        = "development",
   auth0       = {
     domain        = assert (os.getenv "AUTH0_DOMAIN"),
     client_id     = assert (os.getenv "AUTH0_ID"    ),
@@ -726,7 +727,9 @@ describe ("cosy client", function ()
       editor (function (_, layer, _)
         layer.mydata = 1
       end)
-      Copas.sleep (1)
+      while not editor.remote.layer.mydata do
+        editor:wait (function (_, key) return key == "mydata" end)
+      end
       current = editor.current.layer.mydata
       remote  = editor.remote .layer.mydata
       editor:close ()
@@ -734,6 +737,35 @@ describe ("cosy client", function ()
     Copas.loop ()
     assert.are.equal (current, 1)
     assert.are.equal (remote , 1)
+  end)
+
+  it ("can require a submodel", function ()
+    local token  = make_token (identities.rahan)
+    local Client = require "cosy.client"
+    local client = Client.new {
+      url   = server_url,
+      token = token,
+    }
+    local project  = client :create_project  {}
+    local toload   = project:create_resource {}
+    local resource = project:create_resource {}
+    local model    = false
+    local loaded   = false
+    Copas.addthread (function ()
+      local editor = resource:edit ()
+      editor (function (L, layer, _)
+        layer.mydata = L.require (toload.cli_id)
+      end)
+      while not editor.remote.layer.mydata do
+        editor:wait (function (_, key) return key == "mydata" end)
+      end
+      model  = editor.remote.layer
+      loaded = editor.remote.layer.mydata
+      editor:close ()
+    end)
+    Copas.loop ()
+    assert.is_not_nil (model)
+    assert.is_not_nil (loaded)
   end)
 
   it ("can modify concurrently the model", function ()
