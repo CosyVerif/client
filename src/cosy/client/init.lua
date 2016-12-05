@@ -13,6 +13,14 @@ local Permissions = {}
 local Project     = {}
 local User        = {}
 
+local function assert (condition, t)
+  if not condition then
+    error (t)
+  else
+    return condition
+  end
+end
+
 -- ======================================================================
 
 Client.__index = Client
@@ -681,6 +689,16 @@ function Resource.delete (resource)
   }
   assert (status == 204, { status = status })
   resource.data = false
+end
+
+function Resource.copy (resource, project)
+  assert (getmetatable (resource) == Resource)
+  assert (getmetatable (project ) == Project)
+  return project:create_resource {
+    name        = resource.data.name,
+    description = resource.data.description,
+    data        = resource.data.data,
+  }
 end
 
 function Resource.aliases (resource)

@@ -21,14 +21,11 @@ dependencies = {
   "ansicolors",
   "copas",
   "etlua",
-  "i18n",
   "lua-cjson-ol",
   "lua-websockets",
   "layeredata",
-  "luafilesystem",
   "luasec",
   "luasocket",
-  "lustache",
   "serpent",
   "yaml",
 }
@@ -39,8 +36,6 @@ build = {
     ["cosy.client"     ] = "src/cosy/client/init.lua",
     ["cosy.client.cli" ] = "src/cosy/client/cli.lua",
     ["cosy.client.http"] = "src/cosy/client/http.lua",
-    ["cosy.client.i18n"] = "src/cosy/client/i18n.lua",
-    ["cosy.i18n"       ] = "src/cosy/i18n/init.lua",
   },
   install = {
     bin = {
