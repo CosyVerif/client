@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -e
+lua5.1 \
+    -e 'package.path = "/home/luca/cosy/repos/client/src/cosy/webclient/lua/?.lua;/home/luca/cosy/repos/layeredata/src/?/init.lua;/home/luca/cosy/repos/client/src/cosy/webclient/lua/visualiser/lib/luarocks/rocks/?/init.lua;" .. package.path' \
+    alban.lua

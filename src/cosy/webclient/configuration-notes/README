@@ -1,0 +1,50 @@
+Web client testing (using the installation on my server)
+========================================================
+
+[FIXME: the URL should be on the slides only: don't publish it!]
+http://ageinghacker.net:8000/cosy/webclient
+  The main directory at http://ageinghacker.net:8000 is
+  intentionally inaccessible.
+
+Ctrl+Shift+I opens development tools on most recent web browsers.
+
+
+Server-side configuration
+=========================
+
+Using nginx is essentially mandatory; in any case we need to map URLs containing the 
+/lua substring in the local part into directories and files which are tried one by one,
+with the first match winning.  
+
+This might be doable with some Apache module, but the nginx configuration included here
+is convenient and easy to customize.
+
+On my debian unstable:
+  luarocks install c3 coronest uuid
+  aptitude install nginx libnginx-mod-http-lua php7.0-fpm
+
+Unpack the sources into ~luca/cosy so that, for example, you see a file at
+~/cosy/repos/client/src/cosy/webclient/lua/visualiser/init.lua
+.  Notice that
+
+Use my /etc/nginx/nginx.conf , and change directories if you want.  The server
+listens on the local host's 8000 TCP port.
+
+Security warning
+----------------
+A web client is allowed to upload files into /tmp/uploaded-models/ on the
+server.  In order to prevent malicious users from filling the server disk, at
+every client execution the oldest files in the directory are deleted, leaving
+only $how_many_files_to_keep files plus the one which is being created, if any.
+
+This functionality probably only works on GNU systems, which I guess is not a
+real problem since I'm speaking of the *server* side.  Anyway you should verify
+that your directory doesn't grow to an unbounded size before opening to the
+public.
+
+It is conceivable that an attacker may try to fill the server disk by uploading
+files; the attack should not succeed, but having files rapidly written and
+deleted may in fact work as a DoS against real clients, whose requests may fail.
+
+Due to the asynchronous nature of HTTP requests referring modules on the server,
+deleting a file right after it's no longer needed sounds at least very difficult.
